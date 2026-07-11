@@ -1,0 +1,42 @@
+GameMaster
+Copyright 2026 MatrixReligio LLC
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------------
+
+Sparkle (https://sparkle-project.org)
+  Auto-update framework. MIT License. Fetched as a Swift Package dependency at
+  build time; not vendored in this repository.
+
+Wine (https://www.winehq.org)
+  GameMaster downloads a pre-built, open-source Wine runtime at first run.
+  Wine is licensed under the GNU Lesser General Public License (LGPL) v2.1 or
+  later. GameMaster does not modify or redistribute Wine within this repository;
+  it downloads an unmodified upstream build and its source is available from the
+  respective distributor. The default runtime is the community "Game Porting
+  Toolkit" build maintained by Gcenx
+  (https://github.com/Gcenx/game-porting-toolkit).
+
+--------------------------------------------------------------------------------
+Apple Game Porting Toolkit / D3DMetal
+--------------------------------------------------------------------------------
+
+GameMaster does NOT bundle, redistribute, or re-host Apple's D3DMetal libraries
+or any part of the Game Porting Toolkit "Evaluation environment for Windows
+games". Those components are proprietary to Apple Inc. and are subject to
+Apple's own license terms. When a user chooses to update their graphics layer,
+GameMaster imports the libraries from a disk image the user obtains directly
+from Apple; the libraries remain solely on the user's machine.
+
+--------------------------------------------------------------------------------
+Trademarks
+--------------------------------------------------------------------------------
+
+Steam is a trademark of Valve Corporation. Windows and DirectX are trademarks
+of Microsoft Corporation. Apple, macOS, Metal, and Apple Silicon are trademarks
+of Apple Inc. All other trademarks are the property of their respective owners.
+GameMaster is an independent project and is not affiliated with, endorsed by, or
+sponsored by any of these companies.

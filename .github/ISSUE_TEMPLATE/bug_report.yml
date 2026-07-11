@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a problem running a game or using GameMaster
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to file a report! Please don't include license keys or account credentials.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: game
+    attributes:
+      label: Game or program
+      description: Which Windows game or program (and store) were you running?
+  - type: dropdown
+    id: chip
+    attributes:
+      label: Mac chip
+      options: [M1, M2, M3, M4, "M4 Pro/Max", Other Apple Silicon]
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "26.5"
+    validations:
+      required: true
+  - type: input
+    id: gm-version
+    attributes:
+      label: GameMaster version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Attach the log from Bottle → Logs → Show in Finder if relevant.
+      render: shell
