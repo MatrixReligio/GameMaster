@@ -102,6 +102,15 @@ struct AppStateTests {
         await state.createBottle(name: "B")
         let bottle = try #require(state.bottles.first)
 
+        // Simulate the installer producing steam.exe so the completion check passes.
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        let steamExe = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.exe")
+        try FileManager.default.createDirectory(
+            at: steamExe.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("MZ".utf8).write(to: steamExe)
+
         await state.installCatalogApp(id: "steam", into: bottle)
         #expect(state.lastErrorMessage == nil)
         let updated = try #require(state.bottles.first)

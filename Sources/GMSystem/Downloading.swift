@@ -20,50 +20,74 @@ public enum DownloadError: Error, LocalizedError, Equatable {
     }
 }
 
-/// Real downloader backed by URLSession with byte-level progress.
+/// Real downloader backed by a URLSession download task. A download task streams
+/// straight to a temp file with OS-managed buffering — unlike byte-by-byte
+/// `URLSession.bytes` iteration, which is pathologically slow for large files
+/// (hundreds of MB) and can exhaust the request timeout.
 public struct URLSessionDownloader: Downloading {
-    public init() {}
+    private let timeout: TimeInterval
+
+    public init(timeout: TimeInterval = 1800) {
+        self.timeout = timeout
+    }
 
     public func download(
         from url: URL,
         to destination: URL,
         progress: (@Sendable (Double) -> Void)?
     ) async throws {
-        let (bytes, response) = try await URLSession.shared.bytes(from: url)
+        let config = URLSessionConfiguration.default
+        // Large runtime downloads must not die on the default 60s request
+        // timeout; cap the whole resource instead.
+        config.timeoutIntervalForResource = timeout
+        config.waitsForConnectivity = true
+        let delegate = DownloadProgressDelegate(progress: progress)
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+        defer { session.finishTasksAndInvalidate() }
+
+        let (tempURL, response) = try await session.download(from: url)
         if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
             throw DownloadError.badStatus(http.statusCode)
         }
-        let expected = response.expectedContentLength
 
-        try FileManager.default.createDirectory(
+        let fm = FileManager.default
+        try fm.createDirectory(
             at: destination.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        FileManager.default.createFile(atPath: destination.path, contents: nil)
-        let handle = try FileHandle(forWritingTo: destination)
-        defer { try? handle.close() }
-
-        var buffer = Data(capacity: 1 << 16)
-        var written: Int64 = 0
-        var lastReported = -1.0
-        for try await byte in bytes {
-            buffer.append(byte)
-            if buffer.count == 1 << 16 {
-                try handle.write(contentsOf: buffer)
-                written += Int64(buffer.count)
-                buffer.removeAll(keepingCapacity: true)
-                if expected > 0 {
-                    let fraction = Double(written) / Double(expected)
-                    if fraction - lastReported >= 0.01 {
-                        lastReported = fraction
-                        progress?(fraction)
-                    }
-                }
-            }
+        if fm.fileExists(atPath: destination.path) {
+            try fm.removeItem(at: destination)
         }
-        if !buffer.isEmpty {
-            try handle.write(contentsOf: buffer)
-        }
+        // The temp file and destination may be on different volumes; moveItem
+        // handles the cross-volume copy, falling back to copy+remove.
+        try fm.moveItem(at: tempURL, to: destination)
         progress?(1.0)
+    }
+}
+
+private final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private let progress: (@Sendable (Double) -> Void)?
+
+    init(progress: (@Sendable (Double) -> Void)?) {
+        self.progress = progress
+    }
+
+    /// Required by URLSessionDownloadDelegate; the async download(from:) API
+    /// returns the temp URL itself, so this is a no-op.
+    func urlSession(
+        _: URLSession,
+        downloadTask _: URLSessionDownloadTask,
+        didFinishDownloadingTo _: URL
+    ) {}
+
+    func urlSession(
+        _: URLSession,
+        downloadTask _: URLSessionDownloadTask,
+        didWriteData _: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        progress?(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
     }
 }

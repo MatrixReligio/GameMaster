@@ -6,11 +6,14 @@ import GMSystem
 
 public enum LaunchError: Error, LocalizedError, Equatable {
     case runtimeMissing(id: String)
+    case commandFailed(command: String, exitCode: Int32)
 
     public var errorDescription: String? {
         switch self {
         case .runtimeMissing:
             String(localized: "The Windows runtime is not installed yet. Open Settings → Runtime to install it.")
+        case let .commandFailed(command, exitCode):
+            String(localized: "“\(command)” failed (exit code \(exitCode)). Check the bottle's logs for details.")
         }
     }
 }
@@ -41,13 +44,16 @@ public struct WineLauncher: Sendable {
     /// Boots a fresh prefix (`wineboot --init`) and applies registry tweaks.
     public func initializeBottle(_ bottle: Bottle) async throws {
         let context = try await context(for: bottle)
-        _ = try await runner.run(
+        let boot = try await runner.run(
             executable: context.wineBinary,
             arguments: ["wineboot", "--init"],
             environment: context.environment,
             currentDirectory: nil,
             outputLine: nil
         )
+        guard boot.exitCode == 0 else {
+            throw LaunchError.commandFailed(command: "wineboot", exitCode: boot.exitCode)
+        }
         let regFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("gamemaster-retina-\(UUID().uuidString).reg")
         try RegistryTweaks.retinaRegContent(enabled: bottle.settings.retinaMode)
@@ -63,6 +69,8 @@ public struct WineLauncher: Sendable {
     }
 
     /// Runs a registered program (windows path resolved inside the prefix).
+    /// Uses `/wait` so the call stays suspended for the program's lifetime —
+    /// the caller's running-state tracking then reflects reality.
     @discardableResult
     public func launch(_ program: Program, in bottle: Bottle) async throws -> ProcessResult {
         let context = try await context(for: bottle)
@@ -72,7 +80,8 @@ public struct WineLauncher: Sendable {
             arguments: program.arguments,
             extraEnvironment: program.environment,
             logName: program.name,
-            context: context
+            context: context,
+            wait: true
         )
     }
 

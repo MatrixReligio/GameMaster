@@ -83,6 +83,16 @@ struct AppInstallerTests {
         let catalog = try InstallerCatalog.bundled()
         let steam = try #require(catalog.entries.first { $0.id == "steam" })
 
+        // Simulate the installer producing steam.exe (the FakeRunner is a no-op),
+        // so the installer's completion check sees the program.
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let steamExe = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.exe")
+        try FileManager.default.createDirectory(
+            at: steamExe.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("MZ".utf8).write(to: steamExe)
+
         let phases = Mutex<[InstallPhase]>([])
         let program = try await installer.install(steam, into: env.bottle) { phase, _ in
             phases.withLock {
@@ -100,7 +110,6 @@ struct AppInstallerTests {
         #expect(invocation.arguments.contains { $0.hasSuffix("SteamSetup.exe") })
 
         // steam.cfg written into the prefix at the catalog-specified path.
-        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
         let cfg = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.cfg")
         #expect(try String(contentsOf: cfg, encoding: .utf8) == "BootStrapperInhibitAll=Enable\n")
 
@@ -125,6 +134,13 @@ struct AppInstallerTests {
             bottleStore: env.bottleStore
         )
         let steam = try #require(InstallerCatalog.bundled().entries.first { $0.id == "steam" })
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let steamExe = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.exe")
+        try FileManager.default.createDirectory(
+            at: steamExe.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("MZ".utf8).write(to: steamExe)
 
         _ = try await installer.install(steam, into: env.bottle, progress: nil)
         let reloaded = try #require(await env.bottleStore.list().first)
@@ -171,5 +187,36 @@ struct ProgramLibraryTests {
         )
         #expect(program.name == "My App")
         #expect(program.windowsPath == "C:\\Games\\app.exe")
+    }
+}
+
+@Suite("AppInstaller failure handling")
+struct AppInstallerFailureTests {
+    @Test func nonzeroInstallerExitAborts() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let fixture = env.root.appendingPathComponent("bad-installer.exe")
+        try Data("MZ".utf8).write(to: fixture)
+        // Runner reports a failed installer.
+        let failing = FakeRunner(exitCode: 1)
+        let launcher = WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: failing,
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+        let installer = AppInstaller(
+            downloader: FakeDownloader(fixture: fixture),
+            launcher: launcher,
+            bottleStore: env.bottleStore
+        )
+        let steam = try #require(InstallerCatalog.bundled().entries.first { $0.id == "steam" })
+        await #expect(throws: (any Error).self) {
+            _ = try await installer.install(steam, into: env.bottle, progress: nil)
+        }
+        // No broken program left registered.
+        let saved = try #require(await env.bottleStore.list().first)
+        #expect(saved.programs.isEmpty)
     }
 }

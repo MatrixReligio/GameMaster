@@ -61,6 +61,11 @@ let package = Package(
             dependencies: ["GMModel", "GMSystem"],
             path: "Sources/GMTestSupport"
         ),
+        .executableTarget(
+            name: "gm-smoke",
+            dependencies: ["GMModel", "GMSystem", "GMRuntime", "GMBottles", "GMLaunch"],
+            path: "Tools/GMSmoke"
+        ),
         .testTarget(
             name: "GMModelTests",
             dependencies: ["GMModel"],

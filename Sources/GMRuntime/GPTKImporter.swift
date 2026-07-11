@@ -3,12 +3,15 @@ import GMModel
 import GMSystem
 
 /// Imports Apple's D3DMetal evaluation layers from the user-supplied
-/// "Evaluation environment for Windows games" DMG into an installed runtime,
-/// following Apple's documented refresh procedure:
+/// "Evaluation environment for Windows games" DMG into an installed runtime.
 ///
-///     cd <wine>/lib
-///     mv external external.old; mv wine wine.old
-///     ditto <volume>/redist/lib/ .
+/// Apple's Read Me documents `mv wine wine.old; ditto redist/lib/ .`, but the
+/// eval environment's `lib/wine` contains ONLY DirectX shim symlinks, not a
+/// full wine tree — so moving the runtime's `wine` dir aside first would drop
+/// core builtins (ntdll.so, …) and brick the runtime. We instead ditto-merge
+/// `redist/lib/` on top of the existing `lib/`, which overwrites exactly the
+/// D3DMetal framework and DirectX shim files while preserving every other
+/// builtin. Same result (newer D3DMetal active), no brick risk.
 ///
 /// GameMaster never downloads or bundles these libraries — the user obtains
 /// the DMG from developer.apple.com with their own Apple ID.
@@ -78,21 +81,12 @@ public struct GPTKImporter: Sendable {
         let fm = FileManager.default
         try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
 
-        for name in ["external", "wine"] {
-            let current = libDir.appendingPathComponent(name)
-            let old = libDir.appendingPathComponent("\(name).old")
-            if fm.fileExists(atPath: current.path) {
-                if fm.fileExists(atPath: old.path) {
-                    try fm.removeItem(at: old)
-                }
-                try fm.moveItem(at: current, to: old)
-            }
-        }
-
-        // ditto preserves symlinks, permissions, and framework structure.
+        // ditto merges redist/lib/ INTO lib/: it overwrites the D3DMetal
+        // framework and DirectX shims but leaves every other builtin intact,
+        // preserving symlinks, permissions, and framework structure.
         let result = try await runner.run(
             executable: URL(fileURLWithPath: "/usr/bin/ditto"),
-            arguments: [redistLib.path + "/", libDir.path],
+            arguments: [redistLib.path, libDir.path],
             environment: nil,
             currentDirectory: nil,
             outputLine: nil

@@ -112,8 +112,10 @@ struct WineLauncherTests {
         let invocation = try #require(runner.invocations.first)
         #expect(invocation.executable.hasSuffix("runtimes/rt/gptk/wine/bin/wine64"))
         let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        // Games launch with /wait so the process stays attached for the whole
+        // session — that's what makes the "running" indicator accurate.
         #expect(invocation.arguments == [
-            "start", "/unix",
+            "start", "/wait", "/unix",
             prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.exe").path,
             "-allosarches", "-cef-force-32bit"
         ])
@@ -209,5 +211,21 @@ struct WineLauncherTests {
         await #expect(throws: LaunchError.self) {
             _ = try await launcher.run(exe: URL(fileURLWithPath: "/x.exe"), arguments: [], in: bottle)
         }
+    }
+}
+
+@Suite("WindowsPath edge cases")
+struct WindowsPathEdgeTests {
+    private let prefix = URL(fileURLWithPath: "/tmp/b/prefix")
+
+    @Test func driveRootMapsToRootedWindowsPath() {
+        // The drive_c root itself must map to "C:\\", not a bare "C:".
+        let windows = WindowsPath.toWindows(prefix.appendingPathComponent("drive_c"), prefix: prefix)
+        #expect(windows == "C:\\")
+    }
+
+    @Test func lowercaseDriveLetterMapsToDosdevices() {
+        let unix = WindowsPath.toUnix("d:\\games\\x.exe", prefix: prefix)
+        #expect(unix.path == "/tmp/b/prefix/dosdevices/d:/games/x.exe")
     }
 }

@@ -10,7 +10,12 @@ public final class LogWriter: Sendable {
     public init(file: URL) {
         self.file = file
         FileManager.default.createFile(atPath: file.path, contents: nil)
-        state = Mutex(try? FileHandle(forWritingTo: file))
+        do {
+            state = try Mutex(FileHandle(forWritingTo: file))
+        } catch {
+            FileHandle.standardError.write(Data("GameMaster: could not open log \(file.path): \(error)\n".utf8))
+            state = Mutex(nil)
+        }
     }
 
     public func append(_ line: String) {

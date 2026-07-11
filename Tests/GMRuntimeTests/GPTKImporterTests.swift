@@ -52,6 +52,16 @@ private func installFakeRuntime(store: RuntimeStore, id: String) async throws ->
     try Data("old-dylib".utf8).write(
         to: lib.appendingPathComponent("external/libd3dshared.dylib")
     )
+    // A core wine builtin that MUST survive a D3DMetal refresh — the eval
+    // environment ships only DirectX shims, so a wholesale replace would
+    // brick the runtime.
+    try FileManager.default.createDirectory(
+        at: lib.appendingPathComponent("wine/x86_64-unix", isDirectory: true),
+        withIntermediateDirectories: true
+    )
+    try Data("core-builtin".utf8).write(
+        to: lib.appendingPathComponent("wine/x86_64-unix/ntdll.so")
+    )
     try Data("wine".utf8).write(to: bin.appendingPathComponent("wine64"))
     let descriptor = RuntimeDescriptor(
         id: id,
@@ -65,7 +75,7 @@ private func installFakeRuntime(store: RuntimeStore, id: String) async throws ->
 
 @Suite("GPTKImporter")
 struct GPTKImporterTests {
-    @Test func importsOverlayFromDMGFollowingApplesProcedure() async throws {
+    @Test func importMergesD3DMetalWithoutBrickingCoreBuiltins() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let volume = try makeEvalVolume(in: dir)
@@ -82,22 +92,24 @@ struct GPTKImporterTests {
         #expect(descriptor.gptk == .installed(version: "3.0"))
         let lib = await store.runtimeDirectory(id: "rt")
             .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine/lib")
-        // New libraries in place…
-        let newDylib = lib.appendingPathComponent("external/libd3dshared.dylib")
-        #expect(try String(contentsOf: newDylib, encoding: .utf8) == "dylib")
+        // New D3DMetal libraries overlaid…
+        #expect(try String(
+            contentsOf: lib.appendingPathComponent("external/libd3dshared.dylib"),
+            encoding: .utf8
+        ) == "dylib")
         #expect(FileManager.default.fileExists(
             atPath: lib.appendingPathComponent("external/D3DMetal.framework/Versions/A/D3DMetal").path
         ))
-        // …unix .so symlinks preserved as symlinks…
+        // …DirectX shim symlinks present as symlinks…
         let soAttrs = try FileManager.default.attributesOfItem(
             atPath: lib.appendingPathComponent("wine/x86_64-unix/d3d11.so").path
         )
         #expect(soAttrs[.type] as? FileAttributeType == .typeSymbolicLink)
-        // …old libraries moved aside per Apple's documented procedure…
+        // …AND the pre-existing core builtin survives (merge, not replace).
         #expect(try String(
-            contentsOf: lib.appendingPathComponent("external.old/libd3dshared.dylib"),
+            contentsOf: lib.appendingPathComponent("wine/x86_64-unix/ntdll.so"),
             encoding: .utf8
-        ) == "old-dylib")
+        ) == "core-builtin")
         // …descriptor persisted and volume unmounted.
         let saved = try await store.descriptor(id: "rt")
         #expect(saved?.gptk == .installed(version: "3.0"))

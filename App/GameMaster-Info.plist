@@ -33,7 +33,7 @@
 	<key>SUFeedURL</key>
 	<string>https://github.com/MatrixReligio/GameMaster/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string></string>
+	<string>/awMmT7co+VlNkDUKvFKwk9EjYyBcsdOH8T5kZvP4l8=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 </dict>

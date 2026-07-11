@@ -28,29 +28,33 @@ public struct SubprocessRunner: ProcessRunning {
         process.standardError = pipe
 
         // Accumulate partial lines across reads; emit only complete lines.
+        // The readabilityHandler is the SOLE reader of the pipe (the
+        // termination handler must never call readToEnd concurrently, or the
+        // two reads race and split/drop bytes). We resume the continuation only
+        // once BOTH the pipe has reached EOF and the process has terminated, so
+        // no trailing output is lost.
         let lineBuffer = LineBuffer(onLine: outputLine)
-        pipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty {
-                handle.readabilityHandler = nil
-                lineBuffer.finish()
-            } else {
-                lineBuffer.append(data)
-            }
-        }
 
         return try await withCheckedThrowingContinuation { continuation in
-            process.terminationHandler = { finished in
-                // Drain whatever the readability handler has not seen yet.
-                if let handle = (finished.standardOutput as? Pipe)?.fileHandleForReading {
-                    handle.readabilityHandler = nil
-                    if let rest = try? handle.readToEnd() {
-                        lineBuffer.append(rest)
-                    }
-                    lineBuffer.finish()
-                }
-                continuation.resume(returning: ProcessResult(exitCode: finished.terminationStatus))
+            let completion = CompletionCoordinator { exitCode in
+                lineBuffer.finish()
+                continuation.resume(returning: ProcessResult(exitCode: exitCode))
             }
+
+            pipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    completion.markEOF()
+                } else {
+                    lineBuffer.append(data)
+                }
+            }
+
+            process.terminationHandler = { finished in
+                completion.markTerminated(exitCode: finished.terminationStatus)
+            }
+
             do {
                 try process.run()
             } catch {
@@ -58,6 +62,47 @@ public struct SubprocessRunner: ProcessRunning {
                 continuation.resume(throwing: error)
             }
         }
+    }
+}
+
+/// Fires `onDone` exactly once, after BOTH the pipe reached EOF and the process
+/// terminated (in either order). Thread-safe.
+private final class CompletionCoordinator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var eof = false
+    private var exitCode: Int32?
+    private var fired = false
+    private let onDone: (Int32) -> Void
+
+    init(onDone: @escaping (Int32) -> Void) {
+        self.onDone = onDone
+    }
+
+    func markEOF() {
+        lock.lock()
+        eof = true
+        let code = maybeFire()
+        lock.unlock()
+        if let code {
+            onDone(code)
+        }
+    }
+
+    func markTerminated(exitCode: Int32) {
+        lock.lock()
+        self.exitCode = exitCode
+        let code = maybeFire()
+        lock.unlock()
+        if let code {
+            onDone(code)
+        }
+    }
+
+    /// Caller must hold the lock. Returns the exit code to fire with, or nil.
+    private func maybeFire() -> Int32? {
+        guard !fired, eof, let exitCode else { return nil }
+        fired = true
+        return exitCode
     }
 }
 

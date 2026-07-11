@@ -39,6 +39,11 @@ public final class AppState {
     private let runner: any ProcessRunning
     public let logsRoot: URL
 
+    // Monotonic tokens so a late progress callback (enqueued before an install
+    // finished) can't overwrite the final state after completion.
+    private var runtimeInstallToken = 0
+    private var appInstallToken = 0
+
     /// Production entry point: real system implementations, app-support root.
     public convenience init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -118,15 +123,21 @@ public final class AppState {
             lastErrorMessage = String(localized: "No runtime is configured for this build.")
             return
         }
+        runtimeInstallToken += 1
+        let token = runtimeInstallToken
         runtimeStatus = .installing(.downloading, 0)
         do {
             let descriptor = try await installer.install(entry: entry) { [weak self] phase, fraction in
                 Task { @MainActor [weak self] in
-                    self?.runtimeStatus = .installing(phase, fraction)
+                    guard let self, runtimeInstallToken == token else { return }
+                    runtimeStatus = .installing(phase, fraction)
                 }
             }
+            // Invalidate any still-queued progress callbacks before settling.
+            runtimeInstallToken += 1
             runtimeStatus = .ready(gptk: descriptor.gptk)
         } catch {
+            runtimeInstallToken += 1
             runtimeStatus = .missing
             report(error)
         }
@@ -196,16 +207,20 @@ public final class AppState {
             lastErrorMessage = String(localized: "Unknown installer.")
             return
         }
+        appInstallToken += 1
+        let token = appInstallToken
         installProgress = (.downloading, 0)
         do {
             _ = try await appInstaller.install(entry, into: bottle) { [weak self] phase, fraction in
                 Task { @MainActor [weak self] in
-                    self?.installProgress = (phase, fraction)
+                    guard let self, appInstallToken == token else { return }
+                    installProgress = (phase, fraction)
                 }
             }
         } catch {
             report(error)
         }
+        appInstallToken += 1
         installProgress = nil
         await refresh()
     }
@@ -252,7 +267,10 @@ public final class AppState {
         } catch {
             report(error)
         }
-        runningIDs.removeAll()
+        // Only this bottle's programs were killed — leave other bottles' state.
+        for program in bottle.programs {
+            runningIDs.remove(program.id)
+        }
     }
 
     // MARK: - Environment checks

@@ -22,7 +22,10 @@ public enum WindowsPath {
         let driveC = prefix.appendingPathComponent("drive_c").path
         if path.hasPrefix(driveC + "/") || path == driveC {
             let rest = String(path.dropFirst(driveC.count))
-            return "C:" + rest.replacingOccurrences(of: "/", with: "\\")
+            // The drive root maps to "C:\", not a bare "C:" (a bare drive
+            // letter is drive-relative in Windows, not the root).
+            let windows = "C:" + rest.replacingOccurrences(of: "/", with: "\\")
+            return windows == "C:" ? "C:\\" : windows
         }
         return "Z:" + path.replacingOccurrences(of: "/", with: "\\")
     }
