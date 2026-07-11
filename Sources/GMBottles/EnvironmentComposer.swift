@@ -42,6 +42,12 @@ public enum EnvironmentComposer {
         if bottle.settings.advertiseAVX {
             env["ROSETTA_ADVERTISE_AVX"] = "1"
         }
+        if let dxr = bottle.settings.dxrOverride {
+            env["D3DM_SUPPORT_DXR"] = dxr ? "1" : "0"
+        }
+        if bottle.settings.metalFX {
+            env["D3DM_ENABLE_METALFX"] = "1"
+        }
 
         env.merge(bottle.settings.extraEnvironment) { _, user in user }
         return env

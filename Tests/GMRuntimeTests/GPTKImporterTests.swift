@@ -180,3 +180,43 @@ struct GPTKDetectorTests {
         #expect(found == ["Evaluation environment for Windows games 3.0"])
     }
 }
+
+@Suite("MetalFXEnabler")
+struct MetalFXEnablerTests {
+    @Test func preparesNvngxFilesPerAppleReadme() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        let descriptor = try await installFakeRuntime(store: store, id: "rt")
+        let lib = await store.runtimeDirectory(id: "rt")
+            .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine/lib")
+        let unixDir = lib.appendingPathComponent("wine/x86_64-unix")
+        let winDir = lib.appendingPathComponent("wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: unixDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: winDir, withIntermediateDirectories: true)
+        try Data("so".utf8).write(to: unixDir.appendingPathComponent("nvngx-on-metalfx.so"))
+        try Data("dll".utf8).write(to: winDir.appendingPathComponent("nvngx-on-metalfx.dll"))
+        try Data("nvapi".utf8).write(to: winDir.appendingPathComponent("nvapi64.dll"))
+
+        let prefix = dir.appendingPathComponent("prefix")
+        let system32 = prefix.appendingPathComponent("drive_c/windows/system32")
+        try FileManager.default.createDirectory(at: system32, withIntermediateDirectories: true)
+
+        let enabler = MetalFXEnabler(store: store)
+        try await enabler.prepare(runtimeID: "rt", prefix: prefix)
+
+        // Renamed per Apple's Read Me…
+        #expect(FileManager.default.fileExists(atPath: unixDir.appendingPathComponent("nvngx.so").path))
+        #expect(FileManager.default.fileExists(atPath: winDir.appendingPathComponent("nvngx.dll").path))
+        // …and both dlls copied into the prefix's system32.
+        #expect(try String(
+            contentsOf: system32.appendingPathComponent("nvngx.dll"), encoding: .utf8
+        ) == "dll")
+        #expect(try String(
+            contentsOf: system32.appendingPathComponent("nvapi64.dll"), encoding: .utf8
+        ) == "nvapi")
+
+        // Idempotent: preparing again must not fail.
+        try await enabler.prepare(runtimeID: "rt", prefix: prefix)
+    }
+}

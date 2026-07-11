@@ -22,6 +22,10 @@ public struct BottleSettings: Codable, Equatable, Sendable {
     public var sync: SyncMode
     public var metalHUD: Bool
     public var advertiseAVX: Bool
+    /// nil = Apple's built-in default (DXR off on M1/M2, on for M3+).
+    public var dxrOverride: Bool?
+    /// Converts DLSS calls to MetalFX where possible (macOS 26+).
+    public var metalFX: Bool
     public var extraEnvironment: [String: String]
 
     public init(
@@ -30,6 +34,8 @@ public struct BottleSettings: Codable, Equatable, Sendable {
         sync: SyncMode = .esync,
         metalHUD: Bool = false,
         advertiseAVX: Bool = false,
+        dxrOverride: Bool? = nil,
+        metalFX: Bool = false,
         extraEnvironment: [String: String] = [:]
     ) {
         self.dxBackend = dxBackend
@@ -37,6 +43,8 @@ public struct BottleSettings: Codable, Equatable, Sendable {
         self.sync = sync
         self.metalHUD = metalHUD
         self.advertiseAVX = advertiseAVX
+        self.dxrOverride = dxrOverride
+        self.metalFX = metalFX
         self.extraEnvironment = extraEnvironment
     }
 
@@ -44,7 +52,7 @@ public struct BottleSettings: Codable, Equatable, Sendable {
     /// carry unknown keys or unknown enum raw values; fall back to defaults
     /// rather than failing the whole bottle.
     private enum CodingKeys: String, CodingKey {
-        case dxBackend, retinaMode, sync, metalHUD, advertiseAVX, extraEnvironment
+        case dxBackend, retinaMode, sync, metalHUD, advertiseAVX, dxrOverride, metalFX, extraEnvironment
     }
 
     public init(from decoder: any Decoder) throws {
@@ -56,6 +64,8 @@ public struct BottleSettings: Codable, Equatable, Sendable {
         sync = syncRaw.flatMap(SyncMode.init(rawValue:)) ?? .esync
         metalHUD = try container.decodeIfPresent(Bool.self, forKey: .metalHUD) ?? false
         advertiseAVX = try container.decodeIfPresent(Bool.self, forKey: .advertiseAVX) ?? false
+        dxrOverride = try container.decodeIfPresent(Bool.self, forKey: .dxrOverride)
+        metalFX = try container.decodeIfPresent(Bool.self, forKey: .metalFX) ?? false
         extraEnvironment = try container.decodeIfPresent([String: String].self, forKey: .extraEnvironment) ?? [:]
     }
 }

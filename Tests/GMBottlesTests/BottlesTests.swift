@@ -172,3 +172,60 @@ struct RegistryTweaksTests {
         #expect(off.contains("\"RetinaMode\"=\"n\""))
     }
 }
+
+@Suite("Compatibility toggles")
+struct CompatibilityEnvTests {
+    private let prefix = URL(fileURLWithPath: "/tmp/bottles/x/prefix")
+    private let gptkRuntime = RuntimeDescriptor(
+        id: "gptk",
+        displayVersion: "GPTK",
+        wineBinaryRelativePath: "wine/bin/wine64",
+        gptk: .installed(version: "3.0")
+    )
+
+    private func bottle(_ mutate: (inout BottleSettings) -> Void) -> Bottle {
+        var settings = BottleSettings()
+        mutate(&settings)
+        return Bottle(name: "T", settings: settings)
+    }
+
+    @Test func dxrDefaultsToAppleAutodetect() {
+        let env = EnvironmentComposer.environment(
+            for: bottle { _ in },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        // nil = let Apple's own M1/M2-vs-M3 default apply; don't set the var.
+        #expect(env["D3DM_SUPPORT_DXR"] == nil)
+    }
+
+    @Test func dxrOverrideSetsExplicitValue() {
+        let on = EnvironmentComposer.environment(
+            for: bottle { $0.dxrOverride = true },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(on["D3DM_SUPPORT_DXR"] == "1")
+        let off = EnvironmentComposer.environment(
+            for: bottle { $0.dxrOverride = false },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(off["D3DM_SUPPORT_DXR"] == "0")
+    }
+
+    @Test func metalFXTogglesDLSSConversion() {
+        let env = EnvironmentComposer.environment(
+            for: bottle { $0.metalFX = true },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(env["D3DM_ENABLE_METALFX"] == "1")
+        let defaultEnv = EnvironmentComposer.environment(
+            for: bottle { _ in },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(defaultEnv["D3DM_ENABLE_METALFX"] == nil)
+    }
+}

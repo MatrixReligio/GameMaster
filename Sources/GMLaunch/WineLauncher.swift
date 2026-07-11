@@ -77,15 +77,22 @@ public struct WineLauncher: Sendable {
     }
 
     /// Runs an arbitrary executable (e.g. a dropped installer) in the bottle.
+    /// `wait: true` blocks until the Windows process exits (installers).
     @discardableResult
-    public func run(exe: URL, arguments: [String], in bottle: Bottle) async throws -> ProcessResult {
+    public func run(
+        exe: URL,
+        arguments: [String],
+        in bottle: Bottle,
+        wait: Bool = false
+    ) async throws -> ProcessResult {
         let context = try await context(for: bottle)
         return try await start(
             exe: exe,
             arguments: arguments,
             extraEnvironment: [:],
             logName: exe.deletingPathExtension().lastPathComponent,
-            context: context
+            context: context,
+            wait: wait
         )
     }
 
@@ -130,7 +137,8 @@ public struct WineLauncher: Sendable {
         arguments: [String],
         extraEnvironment: [String: String],
         logName: String,
-        context: Context
+        context: Context,
+        wait: Bool = false
     ) async throws -> ProcessResult {
         var environment = context.environment
         environment.merge(extraEnvironment) { _, program in program }
@@ -141,9 +149,10 @@ public struct WineLauncher: Sendable {
             logName: logName
         )
         // `start /unix` lets wine handle .exe, .msi, and .lnk uniformly.
+        let startArguments = wait ? ["start", "/wait", "/unix"] : ["start", "/unix"]
         return try await runner.run(
             executable: context.wineBinary,
-            arguments: ["start", "/unix", exe.path] + arguments,
+            arguments: startArguments + [exe.path] + arguments,
             environment: environment,
             currentDirectory: nil
         ) { line in
