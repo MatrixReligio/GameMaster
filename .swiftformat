@@ -1,0 +1,34 @@
+# SwiftFormat configuration for GameMaster
+# Docs: https://github.com/nicklockwood/SwiftFormat
+
+--swiftversion 6.0
+
+# Rules
+--enable isEmpty
+--enable blankLinesBetweenScopes
+--enable redundantReturn
+--enable redundantSelf
+--enable trailingCommas
+--enable sortImports
+
+--disable wrapMultilineConditionalAssignment
+# Keep opening braces on the condition line (matches SwiftLint's opening_brace).
+--disable wrapMultilineStatementBraces
+# Leave modifier ordering to SwiftLint's modifier_order to avoid a tug-of-war.
+--disable modifierOrder
+
+# Options
+--indent 4
+--maxwidth 120
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--commas inline
+--semicolons never
+--trimwhitespace always
+--self remove
+--importgrouping testable-bottom
+--header strip
+
+# Exclusions
+--exclude .build,DerivedData,build,Package.swift

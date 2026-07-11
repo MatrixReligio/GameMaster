@@ -1,0 +1,45 @@
+# macOS
+.DS_Store
+*.swp
+
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+
+# XcodeGen generates the project; do not commit it
+GameMaster.xcodeproj/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+.spm-cache/
+
+# Signing / secrets — never commit
+*.p8
+*.p12
+*.cer
+*.pem
+*.mobileprovision
+*.provisionprofile
+secrets/
+notary-*.json
+
+# Build / release artifacts
+dist/
+*.dmg
+*.zip
+*.app
+
+# Code coverage
+*.profraw
+*.profdata
+coverage/
+
+.superpowers/
