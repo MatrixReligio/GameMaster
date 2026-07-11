@@ -73,6 +73,11 @@ cyclomatic_complexity:
   warning: 12
   error: 20
 
+# The product is literally named "GameMaster" — allow the term in identifiers.
+inclusive_language:
+  override_allowed_terms:
+    - master
+
 identifier_name:
   min_length:
     warning: 2
