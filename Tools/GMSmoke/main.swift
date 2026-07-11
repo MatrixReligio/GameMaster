@@ -73,6 +73,33 @@ struct GMSmoke {
         }
         log("wine binary: \(wine.path)")
 
+        // Optional: import Apple's D3DMetal from a mounted evaluation volume,
+        // exercising the exact GPTKImporter path the app's UI uses.
+        if let volumePath = env["GM_IMPORT_VOLUME"] {
+            log("importing D3DMetal from mounted volume: \(volumePath)")
+            let importer = GPTKImporter(
+                store: runtimeStore,
+                mounter: NoopMounter(),
+                runner: runner
+            )
+            let updated = try await importer.importGPTK(
+                mountedVolume: URL(fileURLWithPath: volumePath),
+                into: descriptor.id
+            )
+            let framework = await runtimeStore.wineBinary(for: updated)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("lib/external/D3DMetal.framework/Versions/A/D3DMetal")
+            guard FileManager.default.fileExists(atPath: framework.path) else {
+                throw SmokeError.missing("D3DMetal.framework after import")
+            }
+            // A core builtin must survive the merge (not bricked).
+            let ntdll = await runtimeStore.wineBinary(for: updated)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("lib/wine/x86_64-unix/ntdll.so")
+            let ntdllOK = FileManager.default.fileExists(atPath: ntdll.path)
+            log("✅ D3DMetal imported: \(updated.gptk); core builtin ntdll.so present=\(ntdllOK)")
+        }
+
         // 2. Create + initialize a bottle with real wineboot.
         let bottle = try await bottleStore.create(name: "Smoke Bottle", runtimeID: descriptor.id)
         let launcher = WineLauncher(
@@ -160,6 +187,16 @@ struct LocalFileDownloader: Downloading {
         try FileManager.default.copyItem(at: source, to: destination)
         progress?(1.0)
     }
+}
+
+/// Passes a pre-mounted volume straight through (the smoke harness mounts the
+/// DMG via Finder / hdiutil out of band).
+struct NoopMounter: DiskImageMounting {
+    func mount(dmg: URL) async throws -> URL {
+        dmg
+    }
+
+    func unmount(_: URL) async {}
 }
 
 enum SmokeError: Error, CustomStringConvertible {

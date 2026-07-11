@@ -176,6 +176,14 @@ struct WineLauncherTests {
         #expect(regedit.arguments.count == 3)
         #expect(regedit.arguments[1] == "/S")
         #expect(runner.invocations.allSatisfy { $0.environment?["WINEPREFIX"] != nil })
+
+        // wineboot must disable the mono/.NET and gecko/HTML auto-installers so
+        // it never tries to download them (which fails with a checksum error).
+        let overrides = try #require(runner.invocations[0].environment?["WINEDLLOVERRIDES"])
+        #expect(overrides.contains("mscoree="))
+        #expect(overrides.contains("mshtml="))
+        // The D3DMetal DirectX overrides must survive the merge.
+        #expect(overrides.contains("d3d11"))
     }
 
     @Test func stopAllKillsWineserver() async throws {

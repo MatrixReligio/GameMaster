@@ -44,10 +44,22 @@ public struct WineLauncher: Sendable {
     /// Boots a fresh prefix (`wineboot --init`) and applies registry tweaks.
     public func initializeBottle(_ bottle: Bottle) async throws {
         let context = try await context(for: bottle)
+
+        // Disable wine's automatic mono/.NET and gecko/HTML installers for the
+        // first boot. The bundled versions in the runtime can mismatch the wine
+        // build, which makes wine DOWNLOAD them and abort with a checksum error
+        // dialog ("Wine Mono Installer: Unexpected checksum…"). Steam and games
+        // don't need them; a specific game can install .NET later via winetricks.
+        var initEnvironment = context.environment
+        initEnvironment["WINEDLLOVERRIDES"] = Self.mergeOverrides(
+            initEnvironment["WINEDLLOVERRIDES"],
+            adding: ["mscoree=", "mshtml="]
+        )
+
         let boot = try await runner.run(
             executable: context.wineBinary,
             arguments: ["wineboot", "--init"],
-            environment: context.environment,
+            environment: initEnvironment,
             currentDirectory: nil,
             outputLine: nil
         )
@@ -117,6 +129,17 @@ public struct WineLauncher: Sendable {
             currentDirectory: nil,
             outputLine: nil
         )
+    }
+
+    /// Merges additional `module=` directives into a WINEDLLOVERRIDES string
+    /// (semicolon-separated), preserving any existing entries (e.g. D3DMetal).
+    static func mergeOverrides(_ existing: String?, adding: [String]) -> String {
+        var parts: [String] = []
+        if let existing, !existing.isEmpty {
+            parts.append(existing)
+        }
+        parts.append(contentsOf: adding)
+        return parts.joined(separator: ";")
     }
 
     // MARK: - Internals
