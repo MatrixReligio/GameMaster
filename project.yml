@@ -67,9 +67,9 @@ targets:
         LSMinimumSystemVersion: "26.0"
         CFBundleLocalizations: [en, zh-Hans, zh-Hant, ja, ko]
         # Sparkle auto-update. Appcast is published as a stable GitHub "latest
-        # release" asset; the EdDSA public key verifies every downloaded update.
-        # SUPublicEDKey is filled in by the release-plumbing task (new keypair).
+        # release" asset; the EdDSA public key verifies every downloaded update
+        # (keychain account "GameMaster"; private key in secrets/, gitignored).
         SUFeedURL: "https://github.com/MatrixReligio/GameMaster/releases/latest/download/appcast.xml"
-        SUPublicEDKey: ""
+        SUPublicEDKey: "/awMmT7co+VlNkDUKvFKwk9EjYyBcsdOH8T5kZvP4l8="
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400

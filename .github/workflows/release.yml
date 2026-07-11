@@ -1,0 +1,88 @@
+name: Release
+
+# Manual trigger: notarized releases require signing/notarization secrets
+# (DEVELOPER_ID_CERT_P12, ASC_KEY_P8, ASC_ISSUER_ID, ...). Configure those,
+# then run this workflow for the tag. Day-to-day releases are cut locally with
+# scripts/release.sh, which signs + notarizes against the Keychain.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag, e.g. v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, Sign, Notarize
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install tools
+        # The runner image pre-taps aws/tap; newer Homebrew requires tap trust
+        # and warns on every invocation. Untap it so the logs stay clean.
+        run: |
+          brew untap aws/tap 2>/dev/null || true
+          brew install xcodegen
+
+      - name: Fetch Sparkle tools (generate_appcast)
+        env:
+          SPARKLE_VERSION: "2.9.3"
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o sparkle.tar.xz \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          mkdir -p sparkle && tar -xf sparkle.tar.xz -C sparkle
+          echo "SPARKLE_BIN=$RUNNER_TEMP/sparkle/bin" >> "$GITHUB_ENV"
+
+      - name: Import Developer ID certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          echo "$CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT_PATH" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+      - name: Store notarization credentials
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc.p8"
+          xcrun notarytool store-credentials gamemaster-notary \
+            --key "$RUNNER_TEMP/asc.p8" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID"
+
+      - name: Build, sign, notarize, staple, package, appcast
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          # EdDSA private key for signing the auto-update appcast.
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: ./scripts/release.sh "$VERSION"
+
+      - name: Verify appcast was produced
+        run: test -s dist/appcast.xml && echo "appcast OK" || { echo "appcast.xml missing"; exit 1; }
+
+      - name: Upload release artifacts (DMG + appcast)
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: GameMaster ${{ github.event.inputs.version }}
+          files: |
+            dist/GameMaster-*.dmg
+            dist/appcast.xml
+          generate_release_notes: true

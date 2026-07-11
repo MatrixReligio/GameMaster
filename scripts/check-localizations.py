@@ -11,9 +11,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "App/Resources/Localizable.xcstrings"
 LANGS = ["zh-Hans", "zh-Hant", "ja", "ko"]
 
-# String(localized: "…") including multi-line literals ("""…""") and \(…)
-# interpolations, which the compiler turns into %@ placeholders.
-PATTERN = re.compile(r'String\(\s*localized:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL)
+# `localized: "…"` labels (from String(localized:)), tolerating a wrapped
+# `String(` and interleaved comments before the label. \(…) interpolations
+# become %@ placeholders, matching what the compiler emits as the key.
+PATTERN = re.compile(r'localized:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL)
 
 
 def used_keys() -> set[str]:
