@@ -73,22 +73,22 @@ let package = Package(
         ),
         .testTarget(
             name: "GMRuntimeTests",
-            dependencies: ["GMRuntime", "GMSystem", "GMModel"],
+            dependencies: ["GMTestSupport", "GMRuntime", "GMSystem", "GMModel"],
             path: "Tests/GMRuntimeTests"
         ),
         .testTarget(
             name: "GMBottlesTests",
-            dependencies: ["GMBottles", "GMRuntime", "GMSystem", "GMModel"],
+            dependencies: ["GMTestSupport", "GMBottles", "GMRuntime", "GMSystem", "GMModel"],
             path: "Tests/GMBottlesTests"
         ),
         .testTarget(
             name: "GMLaunchTests",
-            dependencies: ["GMLaunch", "GMBottles", "GMRuntime", "GMSystem", "GMModel"],
+            dependencies: ["GMTestSupport", "GMLaunch", "GMBottles", "GMRuntime", "GMSystem", "GMModel"],
             path: "Tests/GMLaunchTests"
         ),
         .testTarget(
             name: "GMAppsTests",
-            dependencies: ["GMApps", "GMLaunch", "GMBottles", "GMRuntime", "GMSystem", "GMModel"],
+            dependencies: ["GMTestSupport", "GMApps", "GMLaunch", "GMBottles", "GMRuntime", "GMSystem", "GMModel"],
             path: "Tests/GMAppsTests"
         ),
     ]
