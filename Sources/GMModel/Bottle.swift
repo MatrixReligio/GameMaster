@@ -25,7 +25,9 @@ public struct Bottle: Codable, Identifiable, Equatable, Sendable {
         schemaVersion = Self.currentSchemaVersion
         self.id = id
         self.name = name
-        self.createdAt = createdAt
+        // Whole-second precision: bottle.json stores ISO-8601 dates, which
+        // have no fractional seconds; equality must survive a round-trip.
+        self.createdAt = Date(timeIntervalSince1970: createdAt.timeIntervalSince1970.rounded(.down))
         self.runtimeID = runtimeID
         self.settings = settings
         self.programs = programs

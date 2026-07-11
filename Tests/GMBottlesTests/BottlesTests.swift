@@ -1,0 +1,174 @@
+import Foundation
+import GMModel
+import Testing
+@testable import GMBottles
+
+private func tempDir() throws -> URL {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("gm-bottles-tests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
+}
+
+@Suite("BottleStore")
+struct BottleStoreTests {
+    @Test func createPersistsBottleWithPrefixDirectory() async throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = BottleStore(root: root)
+
+        let bottle = try await store.create(name: "我的游戏瓶", runtimeID: "gptk-3.0-3")
+        #expect(bottle.name == "我的游戏瓶")
+        #expect(bottle.runtimeID == "gptk-3.0-3")
+
+        let prefix = await store.prefixDirectory(of: bottle)
+        #expect(FileManager.default.fileExists(atPath: prefix.path))
+        #expect(prefix.lastPathComponent == "prefix")
+
+        let listed = try await store.list()
+        #expect(listed == [bottle])
+    }
+
+    @Test func saveUpdatesAndDeleteRemoves() async throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = BottleStore(root: root)
+
+        var bottle = try await store.create(name: "A", runtimeID: nil)
+        bottle.settings.metalHUD = true
+        bottle.programs.append(Program(name: "Steam", windowsPath: "C:\\steam.exe"))
+        try await store.save(bottle)
+        #expect(try await store.list() == [bottle])
+
+        try await store.delete(id: bottle.id)
+        #expect(try await store.list().isEmpty)
+        let dir = await store.directory(of: bottle)
+        #expect(!FileManager.default.fileExists(atPath: dir.path))
+    }
+
+    @Test func listSkipsCorruptEntries() async throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = BottleStore(root: root)
+        _ = try await store.create(name: "OK", runtimeID: nil)
+
+        let corrupt = root.appendingPathComponent("bottles/corrupt", isDirectory: true)
+        try FileManager.default.createDirectory(at: corrupt, withIntermediateDirectories: true)
+        try Data("not json".utf8).write(to: corrupt.appendingPathComponent("bottle.json"))
+
+        let listed = try await store.list()
+        #expect(listed.count == 1)
+        #expect(listed.first?.name == "OK")
+    }
+}
+
+@Suite("EnvironmentComposer")
+struct EnvironmentComposerTests {
+    private let prefix = URL(fileURLWithPath: "/tmp/bottles/x/prefix")
+    private let gptkRuntime = RuntimeDescriptor(
+        id: "gptk",
+        displayVersion: "GPTK",
+        wineBinaryRelativePath: "wine/bin/wine64",
+        gptk: .installed(version: "3.0")
+    )
+    private let plainRuntime = RuntimeDescriptor(
+        id: "plain",
+        displayVersion: "Wine",
+        wineBinaryRelativePath: "wine/bin/wine64",
+        gptk: .none
+    )
+
+    private func bottle(_ mutate: (inout BottleSettings) -> Void = { _ in }) -> Bottle {
+        var settings = BottleSettings()
+        mutate(&settings)
+        return Bottle(name: "T", settings: settings)
+    }
+
+    @Test func baseEnvironment() {
+        let env = EnvironmentComposer.environment(for: bottle(), prefix: prefix, runtime: gptkRuntime)
+        #expect(env["WINEPREFIX"] == "/tmp/bottles/x/prefix")
+        #expect(env["WINEDEBUG"] == "-all")
+        #expect(env["WINEESYNC"] == "1")
+        #expect(env["WINEMSYNC"] == nil)
+        #expect(env["MTL_HUD_ENABLED"] == nil)
+        #expect(env["ROSETTA_ADVERTISE_AVX"] == nil)
+    }
+
+    @Test func gptkEnablesDllOverrides() {
+        let env = EnvironmentComposer.environment(for: bottle(), prefix: prefix, runtime: gptkRuntime)
+        #expect(env["WINEDLLOVERRIDES"] == "d3d9,d3d10core,d3d11,d3d12,d3d12core,dxgi=n,b")
+    }
+
+    @Test func backendOffDisablesDllOverrides() {
+        let env = EnvironmentComposer.environment(
+            for: bottle { $0.dxBackend = .off },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(env["WINEDLLOVERRIDES"] == nil)
+    }
+
+    @Test func runtimeWithoutGPTKHasNoDllOverrides() {
+        let env = EnvironmentComposer.environment(for: bottle(), prefix: prefix, runtime: plainRuntime)
+        #expect(env["WINEDLLOVERRIDES"] == nil)
+    }
+
+    @Test func syncModes() {
+        let msync = EnvironmentComposer.environment(
+            for: bottle { $0.sync = .msync },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(msync["WINEMSYNC"] == "1")
+        #expect(msync["WINEESYNC"] == nil)
+
+        let none = EnvironmentComposer.environment(
+            for: bottle { $0.sync = .none },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(none["WINEESYNC"] == nil)
+        #expect(none["WINEMSYNC"] == nil)
+    }
+
+    @Test func togglesMapToEnvironment() {
+        let env = EnvironmentComposer.environment(
+            for: bottle {
+                $0.metalHUD = true
+                $0.advertiseAVX = true
+            },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(env["MTL_HUD_ENABLED"] == "1")
+        #expect(env["ROSETTA_ADVERTISE_AVX"] == "1")
+    }
+
+    @Test func extraEnvironmentWinsLast() {
+        let env = EnvironmentComposer.environment(
+            for: bottle {
+                $0.extraEnvironment = ["WINEDEBUG": "+d3d", "MY_VAR": "7"]
+            },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(env["WINEDEBUG"] == "+d3d")
+        #expect(env["MY_VAR"] == "7")
+    }
+}
+
+@Suite("RegistryTweaks")
+struct RegistryTweaksTests {
+    @Test func retinaRegContent() {
+        let on = RegistryTweaks.retinaRegContent(enabled: true)
+        #expect(on == """
+        Windows Registry Editor Version 5.00
+
+        [HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]
+        "RetinaMode"="y"
+
+        """)
+        let off = RegistryTweaks.retinaRegContent(enabled: false)
+        #expect(off.contains("\"RetinaMode\"=\"n\""))
+    }
+}
