@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build & Test
+    # macos-26 with its default Xcode 26 toolchain — matches the project's
+    # requirement (macOS 26 / Swift 6) and the release workflow, so CI
+    # validates under the same SDK we actually ship with.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Swift version
+        run: swift --version
+      - name: Build
+        run: swift build -v
+      - name: Test
+        run: swift test --enable-code-coverage
+
+  app-build:
+    name: Build App Target
+    # The SPM job only compiles the packages under Sources/. The XcodeGen
+    # target (App/Sources) is only compiled by xcodebuild, so without this
+    # job a compile error there would land on main with CI green and first
+    # surface at release time.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install XcodeGen
+        run: |
+          brew untap aws/tap 2>/dev/null || true
+          brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build app (unsigned)
+        run: |
+          xcodebuild -project GameMaster.xcodeproj -scheme GameMaster -configuration Debug \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO build
+
+  lint:
+    name: Lint & Format
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install tools
+        # The runner image pre-taps aws/tap; newer Homebrew requires tap trust
+        # and warns on every invocation. Untap it so the logs stay clean.
+        run: |
+          brew untap aws/tap 2>/dev/null || true
+          brew install swiftlint swiftformat
+      - name: SwiftLint (strict, warnings are errors)
+        run: swiftlint lint --strict
+      - name: SwiftFormat (lint mode)
+        run: swiftformat --lint .
+      - name: Localization coverage (every string in all languages)
+        run: python3 scripts/check-localizations.py
