@@ -56,6 +56,11 @@ let package = Package(
             path: "Sources/GMApps",
             resources: [.process("Resources")]
         ),
+        .target(
+            name: "GMTestSupport",
+            dependencies: ["GMModel", "GMSystem"],
+            path: "Sources/GMTestSupport"
+        ),
         .testTarget(
             name: "GMModelTests",
             dependencies: ["GMModel"],
@@ -63,7 +68,7 @@ let package = Package(
         ),
         .testTarget(
             name: "GMSystemTests",
-            dependencies: ["GMSystem", "GMModel"],
+            dependencies: ["GMSystem", "GMModel", "GMTestSupport"],
             path: "Tests/GMSystemTests"
         ),
         .testTarget(
