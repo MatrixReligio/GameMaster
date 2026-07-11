@@ -4,7 +4,7 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.0] — 2026-07-12
 
 ### Added
 - Initial release of GameMaster: a native macOS app to run Windows games via
