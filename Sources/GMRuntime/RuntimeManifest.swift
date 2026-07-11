@@ -33,6 +33,11 @@ public struct RuntimeManifest: Codable, Sendable, Equatable {
     public var defaultRuntimeID: String
     public var entries: [Entry]
 
+    public init(defaultRuntimeID: String, entries: [Entry]) {
+        self.defaultRuntimeID = defaultRuntimeID
+        self.entries = entries
+    }
+
     public var defaultEntry: Entry? {
         entries.first { $0.id == defaultRuntimeID }
     }

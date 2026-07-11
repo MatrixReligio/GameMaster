@@ -21,6 +21,10 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
 
     public var entries: [Entry]
 
+    public init(entries: [Entry]) {
+        self.entries = entries
+    }
+
     public static func bundled() throws -> InstallerCatalog {
         guard let url = Bundle.module.url(forResource: "installer-catalog", withExtension: "json") else {
             throw CocoaError(.fileNoSuchFile)
