@@ -1,0 +1,13 @@
+{
+  "defaultRuntimeID": "gptk-3.0-3",
+  "entries": [
+    {
+      "id": "gptk-3.0-3",
+      "displayVersion": "GPTK 3.0-3",
+      "url": "https://github.com/Gcenx/game-porting-toolkit/releases/download/Game-Porting-Toolkit-3.0-3/game-porting-toolkit-3.0-3.tar.xz",
+      "sha256": "d377683937340f914823dbb2e1252b329cbf834ff58907d0293db8cebf0e392e",
+      "wineBinaryRelativePath": "Game Porting Toolkit.app/Contents/Resources/wine/bin/wine64",
+      "bundledGPTKVersion": "3.0"
+    }
+  ]
+}
