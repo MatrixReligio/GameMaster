@@ -4,6 +4,22 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.4] — 2026-07-13
+
+### Added
+- **Graceful Stop button** on running program cards. Steam gets its own
+  `-shutdown` command routed through the running instance (saves state, syncs
+  the cloud); other programs receive WM_CLOSE via `taskkill` — the same as
+  clicking the window's close button, so they can show their own save dialogs.
+  "Force Stop All" in the toolbar remains the hard kill for stuck processes.
+- Product Hunt launch badge in the READMEs.
+
+### Changed
+- Launch logs are now pruned to the 10 most recent per bottle (Wine sessions
+  are chatty; unbounded logs quietly ate disk).
+- The window-lifecycle poll relaxes to a 3-second interval while a game is
+  running (it previously woke every second for the whole play session).
+
 ## [0.3.3] — 2026-07-12
 
 ### Fixed

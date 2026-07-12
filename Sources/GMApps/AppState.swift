@@ -374,6 +374,31 @@ public final class AppState {
         try? AppInstaller.applySteamBinaryFixups(entry: entry, prefix: prefix)
     }
 
+    /// Gracefully stops a running program. Catalog programs with
+    /// `shutdownArguments` get their own clean-exit command routed through the
+    /// running instance (Steam's `-shutdown` saves state and syncs the cloud);
+    /// everything else receives WM_CLOSE via taskkill, the same as clicking
+    /// the window's close button. The card shows "Closing…" until the
+    /// program's `launch` call returns.
+    public func stopProgram(_ program: Program, in bottle: Bottle) async {
+        markProgramClosing(program.id)
+        do {
+            if let entry = catalog.entries.first(where: {
+                $0.installedWindowsPath == program.windowsPath && $0.shutdownArguments != nil
+            }), let arguments = entry.shutdownArguments {
+                let prefix = await bottleStore.prefixDirectory(of: bottle)
+                let exe = WindowsPath.toUnix(program.windowsPath, prefix: prefix)
+                _ = try await launcher.run(exe: exe, arguments: arguments, in: bottle, wait: false)
+            } else {
+                let imageName = program.windowsPath
+                    .split(separator: "\\").last.map(String.init) ?? program.windowsPath
+                try await launcher.taskkill(imageName: imageName, in: bottle)
+            }
+        } catch {
+            report(error)
+        }
+    }
+
     public func runExe(_ exe: URL, in bottle: Bottle) async {
         do {
             _ = try await launcher.run(exe: exe, arguments: [], in: bottle)

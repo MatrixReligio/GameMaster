@@ -200,6 +200,27 @@ struct WineLauncherTests {
         #expect(overrides.contains("d3d11"))
     }
 
+    /// Graceful stop: taskkill WITHOUT /F sends WM_CLOSE — the Windows-side
+    /// equivalent of clicking the window's close button — so programs can
+    /// save state or show their own confirmation. stopAll stays the hard kill.
+    @Test func taskkillRequestsGracefulClose() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let runner = FakeRunner()
+        let launcher = WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: runner,
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+        try await launcher.taskkill(imageName: "game.exe", in: env.bottle)
+        let invocation = try #require(runner.invocations.first)
+        #expect(invocation.executable.hasSuffix("wine64"))
+        #expect(invocation.arguments == ["taskkill", "/IM", "game.exe"])
+        #expect(!invocation.arguments.contains("/F"))
+    }
+
     @Test func stopAllKillsWineserver() async throws {
         let env = try await makeEnv()
         defer { try? FileManager.default.removeItem(at: env.root) }

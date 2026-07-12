@@ -127,6 +127,21 @@ public struct WineLauncher: Sendable {
         )
     }
 
+    /// Asks a running Windows program to close gracefully: `taskkill` without
+    /// `/F` sends WM_CLOSE — the same as clicking the window's close button —
+    /// so the program can save state or show its own confirmation dialog.
+    /// `stopAll` remains the hard kill for stuck processes.
+    public func taskkill(imageName: String, in bottle: Bottle) async throws {
+        let context = try await context(for: bottle)
+        _ = try await runner.run(
+            executable: context.wineBinary,
+            arguments: ["taskkill", "/IM", imageName],
+            environment: context.environment,
+            currentDirectory: nil,
+            outputLine: nil
+        )
+    }
+
     /// Kills every wine process of the bottle (`wineserver -k`).
     public func stopAll(in bottle: Bottle) async throws {
         let context = try await context(for: bottle)
@@ -251,14 +266,32 @@ public struct WineLauncher: Sendable {
         }
     }
 
+    /// How many launch logs to keep per bottle. Wine sessions are chatty
+    /// (MoltenVK banners, CEF noise), so unbounded logs quietly eat disk.
+    static let logRetentionCount = 10
+
     private func makeLogFile(bottleDirectoryName: String, logName: String) throws -> LogWriter {
         let dir = logsRoot.appendingPathComponent(bottleDirectoryName, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        Self.pruneOldLogs(in: dir, keeping: Self.logRetentionCount - 1)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         let stamp = formatter.string(from: Date())
         let safeName = logName.replacingOccurrences(of: "/", with: "-")
         return LogWriter(file: dir.appendingPathComponent("\(stamp)-\(safeName).log"))
+    }
+
+    /// Deletes all but the newest `keeping` logs in a bottle's log directory.
+    /// The timestamped file names sort chronologically.
+    static func pruneOldLogs(in directory: URL, keeping: Int) {
+        let fm = FileManager.default
+        guard let logs = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter({ $0.pathExtension == "log" })
+            .sorted(by: { $0.lastPathComponent > $1.lastPathComponent })
+        else { return }
+        for stale in logs.dropFirst(max(0, keeping)) {
+            try? fm.removeItem(at: stale)
+        }
     }
 }

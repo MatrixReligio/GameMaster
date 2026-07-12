@@ -270,18 +270,22 @@ struct ProgramCard: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
+            } else if isRunning {
+                Button {
+                    Task { await appState.stopProgram(program, in: bottle) }
+                } label: {
+                    Label(String(localized: "Stop"), systemImage: "stop.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
             } else {
                 Button {
                     Task { await appState.launch(program: program, in: bottle) }
                 } label: {
-                    Label(
-                        isRunning ? String(localized: "Running") : String(localized: "Play"),
-                        systemImage: "play.fill"
-                    )
-                    .frame(maxWidth: .infinity)
+                    Label(String(localized: "Play"), systemImage: "play.fill")
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isRunning)
             }
         }
         .task(id: isRunning) {
@@ -321,13 +325,15 @@ struct ProgramCard: View {
         }
         guard appeared else { return }
         // Phase 2: wait for the window to close (user quit) while the process
-        // finishes shutting down.
+        // finishes shutting down. Polled at a relaxed interval: this runs for
+        // the entire play session, and a "Closing…" label appearing a couple
+        // of seconds late is imperceptible — fewer wakeups while gaming.
         while !Task.isCancelled {
             if Self.wineWindowCount() <= baseline {
                 appState.markProgramClosing(program.id)
                 return
             }
-            try? await Task.sleep(for: .seconds(1))
+            try? await Task.sleep(for: .seconds(3))
         }
     }
 

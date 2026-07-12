@@ -123,6 +123,10 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
         public var runRuntimeID: String?
         /// Optional bottle tuning applied together with `runRuntimeID`.
         public var runTuning: RunTuning?
+        /// Arguments that ask a RUNNING instance to shut down cleanly (routed
+        /// through it, e.g. Steam's `-shutdown` saves state and syncs the
+        /// cloud). Programs without this get a generic WM_CLOSE via taskkill.
+        public var shutdownArguments: [String]?
 
         public init(
             id: String,
@@ -137,7 +141,8 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
             webhelperWrapper: WebHelperWrapper? = nil,
             serviceStub: ServiceStub? = nil,
             runRuntimeID: String? = nil,
-            runTuning: RunTuning? = nil
+            runTuning: RunTuning? = nil,
+            shutdownArguments: [String]? = nil
         ) {
             self.id = id
             self.name = name
@@ -152,6 +157,7 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
             self.serviceStub = serviceStub
             self.runRuntimeID = runRuntimeID
             self.runTuning = runTuning
+            self.shutdownArguments = shutdownArguments
         }
     }
 

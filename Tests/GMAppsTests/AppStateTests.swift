@@ -99,6 +99,35 @@ private func makeState(dir: URL, fixture: URL, entry: RuntimeManifest.Entry, run
 @Suite("AppState")
 @MainActor
 struct AppStateTests {
+    /// Stop must be graceful: Steam gets its own `-shutdown` (saves state,
+    /// syncs the cloud) routed through the running instance; anything else
+    /// gets WM_CLOSE via taskkill. Neither is the wineserver hard kill.
+    @Test func stopProgramPrefersCatalogShutdownThenTaskkill() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = FakeRunner()
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: runner)
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+
+        let steam = Program(
+            name: "Steam",
+            windowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe"
+        )
+        await state.stopProgram(steam, in: bottle)
+        let shutdown = try #require(runner.invocations.last)
+        #expect(shutdown.arguments.contains("-shutdown"))
+        #expect(shutdown.arguments.contains { $0.hasSuffix("steam.exe") })
+        #expect(!shutdown.arguments.contains("/wait"))
+
+        let generic = Program(name: "G", windowsPath: "C:\\games\\g.exe")
+        await state.stopProgram(generic, in: bottle)
+        let taskkill = try #require(runner.invocations.last)
+        #expect(taskkill.arguments == ["taskkill", "/IM", "g.exe"])
+    }
+
     @Test func onboardingNeededUntilRuntimeInstalled() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

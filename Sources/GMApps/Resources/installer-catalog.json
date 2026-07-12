@@ -44,7 +44,10 @@
       "runTuning": {
         "sync": "msync",
         "advertiseAVX": true
-      }
+      },
+      "shutdownArguments": [
+        "-shutdown"
+      ]
     }
   ]
 }

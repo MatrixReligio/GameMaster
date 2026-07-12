@@ -51,10 +51,4 @@ public actor RuntimeStore {
         try encoder.encode(descriptor).write(to: dir.appendingPathComponent("runtime.json"))
     }
 
-    public func removeRuntime(id: String) throws {
-        let dir = runtimeDirectory(id: id)
-        if FileManager.default.fileExists(atPath: dir.path) {
-            try FileManager.default.removeItem(at: dir)
-        }
-    }
 }
