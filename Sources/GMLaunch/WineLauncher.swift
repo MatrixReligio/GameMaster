@@ -152,6 +152,32 @@ public struct WineLauncher: Sendable {
         return parts.joined(separator: ";")
     }
 
+    /// Mirrors DXMT's winemetal.dll from the runtime into the prefix's
+    /// system32. The d3d11/dxgi builtins load it by name, and wine resolves
+    /// that reliably only when the DLL is also visible inside the prefix.
+    /// Idempotent (size compare) and reapplied on every launch, because a
+    /// prefix reset or client self-update can drop the copy.
+    static func ensureDXMTPrefixSupport(runtime: RuntimeDescriptor, wineBinary: URL, prefix: URL) {
+        guard case .installed = runtime.dxmt else { return }
+        let source = wineBinary
+            .deletingLastPathComponent() // bin/
+            .deletingLastPathComponent() // wine root
+            .appendingPathComponent("lib/wine/x86_64-windows/winemetal.dll")
+        let fm = FileManager.default
+        guard let sourceSize = fileSize(of: source) else { return }
+        let target = prefix.appendingPathComponent("drive_c/windows/system32/winemetal.dll")
+        if fileSize(of: target) == sourceSize {
+            return
+        }
+        try? fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? fm.removeItem(at: target)
+        try? fm.copyItem(at: source, to: target)
+    }
+
+    private static func fileSize(of url: URL) -> Int? {
+        (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+    }
+
     // MARK: - Internals
 
     private struct Context {
@@ -167,8 +193,10 @@ public struct WineLauncher: Sendable {
         }
         let prefix = await bottleStore.prefixDirectory(of: bottle)
         let environment = EnvironmentComposer.environment(for: bottle, prefix: prefix, runtime: descriptor)
-        return await Context(
-            wineBinary: runtimeStore.wineBinary(for: descriptor),
+        let wineBinary = await runtimeStore.wineBinary(for: descriptor)
+        Self.ensureDXMTPrefixSupport(runtime: descriptor, wineBinary: wineBinary, prefix: prefix)
+        return Context(
+            wineBinary: wineBinary,
             prefix: prefix,
             environment: environment
         )

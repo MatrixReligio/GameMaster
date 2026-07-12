@@ -1,4 +1,5 @@
 import Foundation
+import GMModel
 
 /// Data-driven catalog of one-click installable Windows programs. Adding a
 /// launcher (Epic, GOG, …) is a JSON edit, not a code change.
@@ -62,6 +63,19 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
         }
     }
 
+    /// Bottle-settings tuning applied when the bottle switches to the entry's
+    /// run runtime. Lets the catalog pick the fastest configuration that
+    /// runtime supports (e.g. msync on CrossOver-derived builds).
+    public struct RunTuning: Codable, Sendable, Equatable {
+        public var sync: SyncMode?
+        public var advertiseAVX: Bool?
+
+        public init(sync: SyncMode? = nil, advertiseAVX: Bool? = nil) {
+            self.sync = sync
+            self.advertiseAVX = advertiseAVX
+        }
+    }
+
     public struct Entry: Codable, Sendable, Equatable, Identifiable {
         public var id: String
         public var name: String
@@ -82,6 +96,8 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
         /// installs/bootstraps under the bottle's default (GPTK) runtime but
         /// runs under a newer Wine whose CEF handshake actually works.
         public var runRuntimeID: String?
+        /// Optional bottle tuning applied together with `runRuntimeID`.
+        public var runTuning: RunTuning?
 
         public init(
             id: String,
@@ -95,7 +111,8 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
             bootstrap: Bootstrap? = nil,
             webhelperWrapper: WebHelperWrapper? = nil,
             serviceStub: ServiceStub? = nil,
-            runRuntimeID: String? = nil
+            runRuntimeID: String? = nil,
+            runTuning: RunTuning? = nil
         ) {
             self.id = id
             self.name = name
@@ -109,6 +126,7 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
             self.webhelperWrapper = webhelperWrapper
             self.serviceStub = serviceStub
             self.runRuntimeID = runRuntimeID
+            self.runTuning = runTuning
         }
     }
 

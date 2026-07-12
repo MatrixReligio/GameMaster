@@ -107,6 +107,7 @@ public struct AppInstaller: Sendable {
         if let runRuntimeID = entry.runRuntimeID {
             updated.runtimeID = runRuntimeID
         }
+        Self.applyRunTuning(entry.runTuning, to: &updated)
         updated.programs.removeAll { $0.windowsPath == entry.installedWindowsPath }
         updated.programs.append(program)
         try await bottleStore.save(updated)
@@ -132,9 +133,22 @@ public struct AppInstaller: Sendable {
         if let runRuntimeID = entry.runRuntimeID {
             updated.runtimeID = runRuntimeID
         }
+        Self.applyRunTuning(entry.runTuning, to: &updated)
         try await bottleStore.save(updated)
         progress?(.done, 1)
         return updated
+    }
+
+    /// Applies the catalog's per-runtime performance tuning to the bottle
+    /// (e.g. msync + Rosetta AVX for the Sikarugir/DXMT Steam runtime).
+    private static func applyRunTuning(_ tuning: InstallerCatalog.RunTuning?, to bottle: inout Bottle) {
+        guard let tuning else { return }
+        if let sync = tuning.sync {
+            bottle.settings.sync = sync
+        }
+        if let advertiseAVX = tuning.advertiseAVX {
+            bottle.settings.advertiseAVX = advertiseAVX
+        }
     }
 
     /// Bootstrap the client (if not already), then apply the run-runtime binary

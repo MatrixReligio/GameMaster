@@ -16,6 +16,15 @@
       "sha256": "940bdd1a177872020be01c5c33917cb8eecc1cc3193ad554914fb6efd90d7889",
       "wineBinaryRelativePath": "Wine Staging.app/Contents/Resources/wine/bin/wine",
       "bundledGPTKVersion": null
+    },
+    {
+      "id": "sikarugir-10.0-6-dxmt-0.80",
+      "displayVersion": "Sikarugir 10.0-6 + DXMT 0.80",
+      "url": "https://github.com/MatrixReligio/GameMaster/releases/download/runtime-assets-1/gamemaster-runtime-sikarugir-10.0-6-dxmt-0.80.tar.xz",
+      "sha256": "ed5aade500e05db01d363f6694c9b49597a19555f32de653ee016ae51999e6ce",
+      "wineBinaryRelativePath": "wswine.bundle/bin/wine",
+      "bundledGPTKVersion": null,
+      "bundledDXMTVersion": "0.80"
     }
   ]
 }

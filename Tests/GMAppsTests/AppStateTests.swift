@@ -53,12 +53,13 @@ private func makeWineStagingFixtureEntry(in dir: URL) async throws -> (URL, Runt
         outputLine: nil
     )
     let entry = try RuntimeManifest.Entry(
-        id: "wine-staging-11.10",
-        displayVersion: "Wine Staging test",
+        id: "sikarugir-10.0-6-dxmt-0.80",
+        displayVersion: "Sikarugir test",
         url: #require(URL(string: "https://example.com/wine.tar.gz")),
         sha256: SHA256.hexDigest(of: archive),
         wineBinaryRelativePath: "Wine Staging.app/Contents/Resources/wine/bin/wine",
-        bundledGPTKVersion: nil
+        bundledGPTKVersion: nil,
+        bundledDXMTVersion: "0.80"
     )
     return (archive, entry)
 }
@@ -201,10 +202,10 @@ struct AppStateTests {
         // The run runtime was fetched (its metadata landed in the store), and the
         // bottle now points at it.
         let runtimeMeta = dir
-            .appendingPathComponent("approot/runtimes/wine-staging-11.10/runtime.json")
+            .appendingPathComponent("approot/runtimes/sikarugir-10.0-6-dxmt-0.80/runtime.json")
         #expect(FileManager.default.fileExists(atPath: runtimeMeta.path))
         let updated = try #require(state.bottles.first)
-        #expect(updated.runtimeID == "wine-staging-11.10")
+        #expect(updated.runtimeID == "sikarugir-10.0-6-dxmt-0.80")
         #expect(updated.programs.contains { $0.name == "Steam" })
     }
 
@@ -252,10 +253,10 @@ struct AppStateTests {
 
         // Migrated: run runtime installed, bottle switched, wrapper installed.
         let runtimeMeta = dir
-            .appendingPathComponent("approot/runtimes/wine-staging-11.10/runtime.json")
+            .appendingPathComponent("approot/runtimes/sikarugir-10.0-6-dxmt-0.80/runtime.json")
         #expect(FileManager.default.fileExists(atPath: runtimeMeta.path))
         let migrated = try #require(state.bottles.first { $0.id == bottle.id })
-        #expect(migrated.runtimeID == "wine-staging-11.10")
+        #expect(migrated.runtimeID == "sikarugir-10.0-6-dxmt-0.80")
         let helperSize = try FileManager.default
             .attributesOfItem(atPath: cef.appendingPathComponent("steamwebhelper.exe").path)[.size] as? Int
         #expect((helperSize ?? .max) < 1_000_000) // now the small wrapper, not the 2 MB genuine

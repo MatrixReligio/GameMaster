@@ -57,6 +57,36 @@ struct ModelCodableTests {
         let data2 = try JSONEncoder().encode(none)
         #expect(try JSONDecoder().decode(RuntimeDescriptor.self, from: data2) == none)
     }
+
+    @Test func runtimeDescriptorDXMTRoundTrip() throws {
+        let descriptor = RuntimeDescriptor(
+            id: "sikarugir-10.0-6-dxmt-0.80",
+            displayVersion: "Sikarugir 10.0-6 + DXMT 0.80",
+            wineBinaryRelativePath: "wswine.bundle/bin/wine",
+            gptk: .none,
+            dxmt: .installed(version: "0.80")
+        )
+        let data = try JSONEncoder().encode(descriptor)
+        let decoded = try JSONDecoder().decode(RuntimeDescriptor.self, from: data)
+        #expect(decoded == descriptor)
+        #expect(decoded.dxmt == .installed(version: "0.80"))
+    }
+
+    /// runtime.json files written before DXMT existed have no `dxmt` key; they
+    /// must keep decoding (otherwise installed runtimes vanish from the store).
+    @Test func runtimeDescriptorWithoutDXMTKeyDecodesToNone() throws {
+        let json = """
+        {
+          "id": "wine-staging-11.10",
+          "displayVersion": "Wine Staging 11.10",
+          "wineBinaryRelativePath": "Wine Staging.app/Contents/Resources/wine/bin/wine",
+          "gptk": {"none": {}}
+        }
+        """
+        let decoded = try JSONDecoder().decode(RuntimeDescriptor.self, from: Data(json.utf8))
+        #expect(decoded.dxmt == DXMTStatus.none)
+        #expect(decoded.gptk == GPTKStatus.none)
+    }
 }
 
 @Suite("Forward compatibility")

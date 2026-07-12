@@ -49,6 +49,16 @@ struct RuntimeManifestTests {
         #expect(wine.sha256 == "940bdd1a177872020be01c5c33917cb8eecc1cc3193ad554914fb6efd90d7889")
         #expect(wine.wineBinaryRelativePath.hasSuffix("wine/bin/wine"))
         #expect(wine.bundledGPTKVersion == nil)
+
+        // The Steam run runtime for D3D11 games: a Sikarugir Wine 10 engine
+        // (exports macdrv_functions, which DXMT needs for its Metal layer —
+        // vanilla Gcenx builds strip it) with DXMT preinstalled as builtins.
+        let sika = try #require(manifest.entries.first { $0.id == "sikarugir-10.0-6-dxmt-0.80" })
+        #expect(sika.sha256.count == 64)
+        #expect(sika.url.host() == "github.com")
+        #expect(sika.wineBinaryRelativePath == "wswine.bundle/bin/wine")
+        #expect(sika.bundledGPTKVersion == nil)
+        #expect(sika.bundledDXMTVersion == "0.80")
     }
 }
 
@@ -125,6 +135,33 @@ struct RuntimeInstallerTests {
         #expect(xattr.arguments.contains("com.apple.quarantine"))
         let seen = phases.withLock { $0 }
         #expect(seen == [.downloading, .verifying, .unpacking, .finishing])
+    }
+
+    @Test func manifestDXMTVersionLandsInDescriptor() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fixture = try await makeRuntimeFixture(in: dir)
+        let sha = try SHA256.hexDigest(of: fixture)
+
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        let installer = RuntimeInstaller(
+            store: store,
+            downloader: FakeDownloader(fixture: fixture),
+            runner: SubprocessRunner(),
+            quarantineRunner: FakeRunner()
+        )
+        let entry = try RuntimeManifest.Entry(
+            id: "sika-test",
+            displayVersion: "Sikarugir test",
+            url: #require(URL(string: "https://example.com/runtime.tar.gz")),
+            sha256: sha,
+            wineBinaryRelativePath: "Game Porting Toolkit.app/Contents/Resources/wine/bin/wine64",
+            bundledGPTKVersion: nil,
+            bundledDXMTVersion: "0.80"
+        )
+        let descriptor = try await installer.install(entry: entry, progress: nil)
+        #expect(descriptor.dxmt == .installed(version: "0.80"))
+        #expect(descriptor.gptk == .none)
     }
 
     @Test func checksumMismatchAborts() async throws {

@@ -12,6 +12,9 @@ public struct RuntimeManifest: Codable, Sendable, Equatable {
         /// Version of Apple's evaluation layers shipped inside this runtime
         /// build, if any (the Gcenx GPTK builds include them).
         public var bundledGPTKVersion: String?
+        /// Version of DXMT (D3D 10/11 → Metal) preinstalled as wine builtins
+        /// in this runtime build, if any (see scripts/assemble-steam-runtime.sh).
+        public var bundledDXMTVersion: String?
 
         public init(
             id: String,
@@ -19,7 +22,8 @@ public struct RuntimeManifest: Codable, Sendable, Equatable {
             url: URL,
             sha256: String,
             wineBinaryRelativePath: String,
-            bundledGPTKVersion: String?
+            bundledGPTKVersion: String?,
+            bundledDXMTVersion: String? = nil
         ) {
             self.id = id
             self.displayVersion = displayVersion
@@ -27,6 +31,7 @@ public struct RuntimeManifest: Codable, Sendable, Equatable {
             self.sha256 = sha256
             self.wineBinaryRelativePath = wineBinaryRelativePath
             self.bundledGPTKVersion = bundledGPTKVersion
+            self.bundledDXMTVersion = bundledDXMTVersion
         }
     }
 

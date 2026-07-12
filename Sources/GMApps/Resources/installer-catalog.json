@@ -32,7 +32,11 @@
         ],
         "stubResourceName": "steamservice_stub"
       },
-      "runRuntimeID": "wine-staging-11.10"
+      "runRuntimeID": "sikarugir-10.0-6-dxmt-0.80",
+      "runTuning": {
+        "sync": "msync",
+        "advertiseAVX": true
+      }
     }
   ]
 }

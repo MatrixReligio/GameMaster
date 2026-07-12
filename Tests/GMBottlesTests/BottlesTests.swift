@@ -113,6 +113,21 @@ struct EnvironmentComposerTests {
         #expect(env["WINEDLLOVERRIDES"] == nil)
     }
 
+    /// DXMT ships as wine *builtins*; a `d3d11,…=n,b` override would make wine
+    /// look for native DLLs and bypass them. A DXMT runtime must therefore get
+    /// NO DirectX overrides even though it does translate D3D to Metal.
+    @Test func dxmtRuntimeGetsNoDllOverrides() {
+        let dxmtRuntime = RuntimeDescriptor(
+            id: "sikarugir-10.0-6-dxmt-0.80",
+            displayVersion: "Sikarugir 10.0-6 + DXMT 0.80",
+            wineBinaryRelativePath: "wswine.bundle/bin/wine",
+            gptk: .none,
+            dxmt: .installed(version: "0.80")
+        )
+        let env = EnvironmentComposer.environment(for: bottle(), prefix: prefix, runtime: dxmtRuntime)
+        #expect(env["WINEDLLOVERRIDES"] == nil)
+    }
+
     @Test func syncModes() {
         let msync = EnvironmentComposer.environment(
             for: bottle { $0.sync = .msync },

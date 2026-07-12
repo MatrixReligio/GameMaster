@@ -83,6 +83,9 @@ public struct RuntimeInstaller: Sendable {
         if let gptkVersion = entry.bundledGPTKVersion {
             descriptor.gptk = .installed(version: gptkVersion)
         }
+        if let dxmtVersion = entry.bundledDXMTVersion {
+            descriptor.dxmt = .installed(version: dxmtVersion)
+        }
         try await store.save(descriptor)
         progress?(.finishing, 1)
         return descriptor

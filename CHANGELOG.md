@@ -4,6 +4,32 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-07-12
+
+### Fixed
+- **D3D11 games launched through Steam (e.g. CS2) now render via Metal.** The
+  Steam bottle's run runtime is now `sikarugir-10.0-6-dxmt-0.80`: a Sikarugir
+  Wine 10 engine with DXMT 0.80 (Direct3D 10/11 → Metal) preinstalled as wine
+  builtins. Verified end-to-end: CS2 reaches gameplay (bot match on Dust 2)
+  with full rendering. Existing Steam bottles migrate automatically on next
+  launch — the new runtime is downloaded and the bottle switched over, games
+  and login stay in place.
+  - Why the engine swap: DXMT needs `macdrv_functions` from wine's macOS
+    driver to create its Metal presentation layer. Vanilla Gcenx builds strip
+    that symbol (verified: metal-view creation fails); the Sikarugir engine
+    exports it. The engine still fixes the steamwebhelper restart loop the
+    same way Wine 11 did (verified: startcount stays 0).
+  - The runtime tarball is assembled by `scripts/assemble-steam-runtime.sh`
+    (engine + wrapper-template dylibs + DXMT, all sha256-pinned) and hosted as
+    a GameMaster release asset, itself sha256-pinned in the runtime manifest.
+
+### Changed
+- Steam bottles get performance tuning when switching to the run runtime:
+  **msync** (Mach-port synchronization, faster than esync; supported by the
+  CrossOver-derived Sikarugir build) and **Rosetta AVX advertising** (Source 2
+  ships AVX-optimized code paths). Both applied by catalog data
+  (`runTuning`), not hard-coded.
+
 ## [0.2.1] — 2026-07-12
 
 ### Added

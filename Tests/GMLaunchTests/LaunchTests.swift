@@ -22,14 +22,15 @@ private struct Env {
     let bottle: Bottle
 }
 
-private func makeEnv() async throws -> Env {
+private func makeEnv(dxmt: DXMTStatus = .none) async throws -> Env {
     let root = try tempDir()
     let runtimeStore = RuntimeStore(root: root)
     let descriptor = RuntimeDescriptor(
         id: "rt",
         displayVersion: "GPTK test",
         wineBinaryRelativePath: "gptk/wine/bin/wine64",
-        gptk: .installed(version: "3.0")
+        gptk: .installed(version: "3.0"),
+        dxmt: dxmt
     )
     try await runtimeStore.save(descriptor)
     let bottleStore = BottleStore(root: root)
@@ -41,6 +42,19 @@ private func makeEnv() async throws -> Env {
         descriptor: descriptor,
         bottle: bottle
     )
+}
+
+/// Places a fake DXMT winemetal.dll inside the test runtime, mirroring the
+/// assembled runtime layout (`<wine root>/lib/wine/x86_64-windows/`).
+private func writeRuntimeWinemetal(env: Env, contents: String) throws -> URL {
+    let dir = env.root.appendingPathComponent(
+        "runtimes/rt/gptk/wine/lib/wine/x86_64-windows",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let dll = dir.appendingPathComponent("winemetal.dll")
+    try Data(contents.utf8).write(to: dll)
+    return dll
 }
 
 @Suite("WindowsPath")
@@ -235,6 +249,78 @@ struct WindowsPathEdgeTests {
     @Test func lowercaseDriveLetterMapsToDosdevices() {
         let unix = WindowsPath.toUnix("d:\\games\\x.exe", prefix: prefix)
         #expect(unix.path == "/tmp/b/prefix/dosdevices/d:/games/x.exe")
+    }
+}
+
+@Suite("DXMT prefix support")
+struct DXMTPrefixSupportTests {
+    private func launcher(_ env: Env, runner: FakeRunner = FakeRunner()) -> WineLauncher {
+        WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: runner,
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+    }
+
+    private func prefixWinemetal(_ env: Env) async -> URL {
+        await env.bottleStore.prefixDirectory(of: env.bottle)
+            .appendingPathComponent("drive_c/windows/system32/winemetal.dll")
+    }
+
+    /// DXMT's d3d11 builtin loads winemetal.dll; wine resolves that reliably
+    /// only when the DLL is also visible in the prefix's system32. Launch must
+    /// copy it there from the runtime.
+    @Test func launchCopiesWinemetalIntoPrefixSystem32() async throws {
+        let env = try await makeEnv(dxmt: .installed(version: "0.80"))
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        _ = try writeRuntimeWinemetal(env: env, contents: "DXMT winemetal")
+
+        _ = try await launcher(env).launch(
+            Program(name: "Game", windowsPath: "C:\\game.exe"),
+            in: env.bottle
+        )
+        let target = await prefixWinemetal(env)
+        #expect(try String(contentsOf: target, encoding: .utf8) == "DXMT winemetal")
+    }
+
+    /// Same-size copies are left alone (idempotent re-launch), but a runtime
+    /// upgrade (different size) must replace the stale prefix copy.
+    @Test func launchReplacesOnlyMismatchedWinemetal() async throws {
+        let env = try await makeEnv(dxmt: .installed(version: "0.80"))
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        _ = try writeRuntimeWinemetal(env: env, contents: "AAAA")
+
+        let target = await prefixWinemetal(env)
+        try FileManager.default.createDirectory(
+            at: target.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("BBBB".utf8).write(to: target)
+
+        let launcher = launcher(env)
+        let program = Program(name: "Game", windowsPath: "C:\\game.exe")
+        _ = try await launcher.launch(program, in: env.bottle)
+        // Same size — the existing copy stays.
+        #expect(try String(contentsOf: target, encoding: .utf8) == "BBBB")
+
+        _ = try writeRuntimeWinemetal(env: env, contents: "AAAA v2 longer")
+        _ = try await launcher.launch(program, in: env.bottle)
+        #expect(try String(contentsOf: target, encoding: .utf8) == "AAAA v2 longer")
+    }
+
+    @Test func launchWithoutDXMTLeavesPrefixAlone() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        _ = try writeRuntimeWinemetal(env: env, contents: "DXMT winemetal")
+
+        _ = try await launcher(env).launch(
+            Program(name: "Game", windowsPath: "C:\\game.exe"),
+            in: env.bottle
+        )
+        let target = await prefixWinemetal(env)
+        #expect(!FileManager.default.fileExists(atPath: target.path))
     }
 }
 
