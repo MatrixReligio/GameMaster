@@ -60,8 +60,8 @@ All notable changes to GameMaster are documented here. The format is based on
 - D3D11 games launched through the Steam client (e.g. **CS2**) currently fail
   with "Failed to create DirectX 11 render device" — the Wine 11 run runtime has
   no D3D→Metal layer (D3DMetal belongs to GPTK). Adding Metal-backed D3D (DXMT or
-  DXVK) to the Steam bottle, or moving to a single wine32on64 runtime, is tracked
-  in `docs/handoff/2026-07-12-wine32on64-steam-experiment.md`.
+  DXVK) to the Steam bottle, or moving to a single wine32on64 runtime, was tracked
+  in the project's internal engineering notes (resolved in 0.3.0).
 
 ## [0.2.0] — 2026-07-12
 
@@ -99,7 +99,7 @@ All notable changes to GameMaster are documented here. The format is based on
   needed for elevated installs, not login/downloads, so the dialog is gone with
   no functional loss for the client UI. Like the wrapper, the stub self-heals on
   every launch if a Steam update overwrites it.
-- Full write-up in `docs/steam-webhelper-resolution.md`.
+- Full write-up in the project's internal engineering notes.
 
 ## [0.1.3] — 2026-07-12
 

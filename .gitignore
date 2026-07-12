@@ -44,5 +44,6 @@ coverage/
 
 .superpowers/
 
-# Local marketing screenshots (large PNGs, kept out of the repo)
-docs/marketing/
+# Internal engineering notes + marketing assets: a separate local-only git
+# repository, intentionally not published.
+docs-internal/
