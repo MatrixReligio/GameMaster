@@ -1,33 +1,41 @@
 import Foundation
 
-// Test fixture builder: constants are known-valid and readability of the
-// byte-layout construction beats splitting it up.
-// swiftlint:disable force_unwrapping function_body_length
-
 /// Builds a minimal-but-valid PE32+ executable containing one RT_GROUP_ICON
 /// and one RT_ICON resource (a PNG payload, as modern .ico files embed).
 /// Layout: DOS header → PE sig → COFF → optional header (with resource data
 /// directory) → 1 section (.rsrc) → resource tree.
 public enum FixturePE {
     /// 1x1 red pixel PNG.
-    public static let pngIcon = Data(base64Encoded:
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==")!
+    public static let pngIcon: Data = {
+        let base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=="
+        guard let data = Data(base64Encoded: base64) else {
+            preconditionFailure("invalid fixture PNG base64")
+        }
+        return data
+    }()
 
+    // Byte-layout construction reads best as one sequential function.
+    // swiftlint:disable:next function_body_length
     public static func build() -> Data {
         let rsrcRVA: UInt32 = 0x1000
         var rsrc = Data()
 
-        /// Resource directory tree. All offsets are relative to .rsrc start.
-        /// Root dir (1 ID entry: type 14 GROUP_ICON) + second entry (type 3 ICON)
-        func directory(entries: [(id: UInt32, offset: UInt32, isDir: Bool)]) -> Data {
-            var d = Data(count: 12)
-            d.append(UInt16(0).le) // named entries
-            d.append(UInt16(entries.count).le)
-            for e in entries {
-                d.append(e.id.le)
-                d.append((e.isDir ? (e.offset | 0x8000_0000) : e.offset).le)
+        // Resource directory tree. All offsets are relative to .rsrc start.
+        // Root dir (1 ID entry: type 14 GROUP_ICON) + second entry (type 3 ICON)
+        struct DirEntrySpec {
+            var id: UInt32
+            var offset: UInt32
+            var isDir: Bool
+        }
+        func directory(entries: [DirEntrySpec]) -> Data {
+            var dir = Data(count: 12)
+            dir.append(UInt16(0).le) // named entries
+            dir.append(UInt16(entries.count).le)
+            for entry in entries {
+                dir.append(entry.id.le)
+                dir.append((entry.isDir ? (entry.offset | 0x8000_0000) : entry.offset).le)
             }
-            return d
+            return dir
         }
 
         // Precompute layout:
@@ -37,11 +45,11 @@ public enum FixturePE {
         var chunks: [(name: String, data: Data)] = []
         func offset(of name: String) -> UInt32 {
             var total: UInt32 = 0
-            for c in chunks {
-                if c.name == name {
+            for chunk in chunks {
+                if chunk.name == name {
                     return total
                 }
-                total += UInt32(c.data.count)
+                total += UInt32(chunk.data.count)
             }
             fatalError("unknown chunk \(name)")
         }
@@ -78,10 +86,10 @@ public enum FixturePE {
             (3, offset(of: "typeIcon"), true), // RT_ICON
             (14, offset(of: "typeGroup"), true) // RT_GROUP_ICON
         ])
-        filled["typeIcon"] = directory(entries: [(7, offset(of: "idIcon"), true)])
-        filled["typeGroup"] = directory(entries: [(1, offset(of: "idGroup"), true)])
-        filled["idIcon"] = directory(entries: [(1033, offset(of: "leafIcon"), false)])
-        filled["idGroup"] = directory(entries: [(1033, offset(of: "leafGroup"), false)])
+        filled["typeIcon"] = directory(entries: [DirEntrySpec(id: 7, offset: offset(of: "idIcon"), isDir: true)])
+        filled["typeGroup"] = directory(entries: [DirEntrySpec(id: 1, offset: offset(of: "idGroup"), isDir: true)])
+        filled["idIcon"] = directory(entries: [DirEntrySpec(id: 1033, offset: offset(of: "leafIcon"), isDir: false)])
+        filled["idGroup"] = directory(entries: [DirEntrySpec(id: 1033, offset: offset(of: "leafGroup"), isDir: false)])
         var leafIcon = Data()
         leafIcon.append((rsrcRVA + offset(of: "icoData")).le) // data RVA
         leafIcon.append(UInt32(iconData.count).le)
@@ -98,7 +106,9 @@ public enum FixturePE {
         filled["groupData"] = group
 
         for (name, data) in filled {
-            let idx = chunks.firstIndex { $0.name == name }!
+            guard let idx = chunks.firstIndex(where: { $0.name == name }) else {
+                preconditionFailure("unknown chunk \(name)")
+            }
             var padded = data
             if padded.count < chunks[idx].data.count {
                 padded.append(Data(count: chunks[idx].data.count - padded.count))

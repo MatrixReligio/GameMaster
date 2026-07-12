@@ -85,8 +85,15 @@ public enum PEIconExtractor {
 
 /// Minimal PE reader: header parsing, RVA→file-offset mapping, resource tree.
 private struct PEFile {
+    struct Section {
+        var virtualAddress: UInt32
+        var virtualSize: UInt32
+        var rawOffset: UInt32
+        var rawSize: UInt32
+    }
+
     let data: Data
-    private var sections: [(virtualAddress: UInt32, virtualSize: UInt32, rawOffset: UInt32, rawSize: UInt32)] = []
+    private var sections: [Section] = []
     private var resourceRVA: UInt32 = 0
 
     init?(data: Data) {
@@ -111,13 +118,13 @@ private struct PEFile {
 
         let sectionTable = optOffset + optSize
         for index in 0 ..< sectionCount {
-            let s = sectionTable + index * 40
-            guard data.count >= s + 40 else { return nil }
-            sections.append((
-                virtualAddress: data.readU32(s + 12),
-                virtualSize: data.readU32(s + 8),
-                rawOffset: data.readU32(s + 20),
-                rawSize: data.readU32(s + 16)
+            let header = sectionTable + index * 40
+            guard data.count >= header + 40 else { return nil }
+            sections.append(Section(
+                virtualAddress: data.readU32(header + 12),
+                virtualSize: data.readU32(header + 8),
+                rawOffset: data.readU32(header + 20),
+                rawSize: data.readU32(header + 16)
             ))
         }
     }
@@ -165,11 +172,11 @@ private struct PEFile {
         let ids = Int(data.readU16(dirOffset + 14))
         var result: [DirEntry] = []
         for index in 0 ..< (named + ids) {
-            let e = dirOffset + 16 + index * 8
-            guard data.count >= e + 8 else { break }
-            let rawOffset = data.readU32(e + 4)
+            let entry = dirOffset + 16 + index * 8
+            guard data.count >= entry + 8 else { break }
+            let rawOffset = data.readU32(entry + 4)
             result.append(DirEntry(
-                id: data.readU32(e),
+                id: data.readU32(entry),
                 offset: rawOffset & 0x7FFF_FFFF,
                 isDirectory: rawOffset & 0x8000_0000 != 0
             ))
