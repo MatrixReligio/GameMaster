@@ -337,10 +337,10 @@ struct ProgramCard: View {
         guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return 0
         }
-        return list.filter { info in
+        return list.count { info in
             let owner = (info[kCGWindowOwnerName as String] as? String ?? "").lowercased()
             return owner.contains("wine")
-        }.count
+        }
     }
 }
 
