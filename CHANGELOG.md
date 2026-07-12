@@ -4,6 +4,44 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-07-12
+
+### Added
+- Existing Steam bottles created before the fix are migrated automatically on
+  launch: the newer Wine runtime is downloaded, the web-helper wrapper is
+  installed, and the bottle is switched over — with a progress bar on the Steam
+  card during the one-time upgrade. No reinstall needed.
+
+### Fixed
+- Steam client UI is now actually usable (reaches and stays on the login
+  screen). Three separate failures were blocking it, each fixed:
+  - **steamwebhelper restart loop** — GPTK's Wine is 7.7 (2022), too old for
+    modern Steam's Chromium-126 CEF handshake, so the web helper never signaled
+    ready and Steam restarted it every ~10s forever. The Steam bottle now runs
+    under a newer Wine (`wine-staging-11.10`, added as a second runtime), where
+    the handshake completes.
+  - **Black login window** — CEF's GPU compositor never completes under Wine.
+    A small PE wrapper (`steamwebhelper_wrapper.exe`) replaces Steam's web
+    helper and injects `--disable-gpu --disable-gpu-compositing` so CEF renders
+    in software. The wrapper is reinstalled on every launch in case a Steam
+    self-update overwrote it.
+  - **First-run download died** — Steam's 32-bit `steamservice.exe` crashes
+    (null deref) under modern Wine's new WoW64, aborting the first client
+    download before `steamui.dll` arrives. Steam now installs and bootstraps
+    under GPTK (whose older 32-bit path works), then the bottle switches to the
+    newer Wine only for running. `steamservice.exe` still can't run there, but
+    it's not needed for login — its error dialog is harmless and can be closed.
+- Stray black console window next to the Steam UI: the web-helper wrapper is now
+  built as a GUI-subsystem PE (`-mwindows`), so Wine no longer opens a console
+  window for it.
+- Recurring "Steam Service Error" dialog on launch: Steam's 32-bit
+  `steamservice.exe` (which null-derefs under new WoW64) is replaced with a no-op
+  stub that registers a dummy service and exits cleanly. The service is only
+  needed for elevated installs, not login/downloads, so the dialog is gone with
+  no functional loss for the client UI. Like the wrapper, the stub self-heals on
+  every launch if a Steam update overwrites it.
+- Full write-up in `docs/steam-webhelper-resolution.md`.
+
 ## [0.1.3] — 2026-07-12
 
 ### Fixed

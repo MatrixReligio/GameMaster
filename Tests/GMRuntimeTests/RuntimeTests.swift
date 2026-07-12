@@ -41,6 +41,14 @@ struct RuntimeManifestTests {
         #expect(entry.sha256.count == 64)
         #expect(entry.wineBinaryRelativePath.hasSuffix("wine/bin/wine64"))
         #expect(entry.bundledGPTKVersion == "3.0")
+
+        // The newer Wine that Steam's CEF UI needs is a second manifest entry.
+        // It carries no GPTK/D3DMetal layers and uses a single `wine` binary
+        // (new WoW64), not GPTK's `wine64`.
+        let wine = try #require(manifest.entries.first { $0.id == "wine-staging-11.10" })
+        #expect(wine.sha256 == "940bdd1a177872020be01c5c33917cb8eecc1cc3193ad554914fb6efd90d7889")
+        #expect(wine.wineBinaryRelativePath.hasSuffix("wine/bin/wine"))
+        #expect(wine.bundledGPTKVersion == nil)
     }
 }
 

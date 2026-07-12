@@ -21,6 +21,9 @@ public final class AppState {
     public private(set) var bottles: [Bottle] = []
     public private(set) var runtimeStatus: RuntimeStatus = .missing
     public private(set) var runningIDs: Set<UUID> = []
+    /// Program currently being migrated to its run runtime on launch (so its card
+    /// can show download progress instead of a plain "Running" state).
+    public private(set) var migratingProgramID: UUID?
     public var lastErrorMessage: String?
     public var selectedBottleID: UUID?
 
@@ -211,6 +214,10 @@ public final class AppState {
         let token = appInstallToken
         installProgress = (.downloading, 0)
         do {
+            // The app may switch the bottle to a different run runtime (Steam
+            // bootstraps under GPTK but runs under a newer Wine); fetch it first
+            // so the switched bottle has a runtime to launch under.
+            try await ensureRunRuntimeInstalled(for: entry, token: token)
             _ = try await appInstaller.install(entry, into: bottle) { [weak self] phase, fraction in
                 Task { @MainActor [weak self] in
                     guard let self, appInstallToken == token else { return }
@@ -223,6 +230,21 @@ public final class AppState {
         appInstallToken += 1
         installProgress = nil
         await refresh()
+    }
+
+    /// Downloads the installer's `runRuntimeID` runtime if it isn't installed yet.
+    /// No-op when the entry doesn't switch runtimes or the runtime is present.
+    private func ensureRunRuntimeInstalled(for entry: InstallerCatalog.Entry, token: Int) async throws {
+        guard let runID = entry.runRuntimeID,
+              try await runtimeStore.descriptor(id: runID) == nil,
+              let runtimeEntry = manifest.entries.first(where: { $0.id == runID })
+        else { return }
+        _ = try await installer.install(entry: runtimeEntry) { [weak self] _, fraction in
+            Task { @MainActor [weak self] in
+                guard let self, appInstallToken == token else { return }
+                installProgress = (.downloading, fraction)
+            }
+        }
     }
 
     public func addProgram(exe: URL, in bottle: Bottle) async {
@@ -263,11 +285,56 @@ public final class AppState {
     public func launch(program: Program, in bottle: Bottle) async {
         runningIDs.insert(program.id)
         do {
+            let bottle = try await migrateSteamBottleIfNeeded(program: program, in: bottle)
+            await ensureWebHelperWrapper(for: program, in: bottle)
             _ = try await launcher.launch(program, in: bottle)
         } catch {
             report(error)
         }
         runningIDs.remove(program.id)
+    }
+
+    /// Upgrades a Steam bottle created before the dual-runtime fix: downloads the
+    /// run runtime (with progress), bootstraps/wraps, and switches the bottle to
+    /// it — so launching an old GPTK-pinned Steam no longer loops. No-op once the
+    /// bottle is already on its run runtime. Returns the bottle to launch.
+    private func migrateSteamBottleIfNeeded(program: Program, in bottle: Bottle) async throws -> Bottle {
+        guard let entry = catalog.entries.first(where: {
+            $0.installedWindowsPath == program.windowsPath && $0.runRuntimeID != nil
+        }), let runID = entry.runRuntimeID, bottle.runtimeID != runID else {
+            return bottle
+        }
+        appInstallToken += 1
+        let token = appInstallToken
+        migratingProgramID = program.id
+        installProgress = (.downloading, 0)
+        defer {
+            appInstallToken += 1
+            migratingProgramID = nil
+            installProgress = nil
+        }
+        try await ensureRunRuntimeInstalled(for: entry, token: token)
+        let migrated = try await appInstaller.migrate(entry, in: bottle) { [weak self] phase, fraction in
+            Task { @MainActor [weak self] in
+                guard let self, appInstallToken == token else { return }
+                installProgress = (phase, fraction)
+            }
+        }
+        bottles = try await bottleStore.list()
+        return migrated
+    }
+
+    /// Repairs Steam's CEF web-helper wrapper and service stub before launch: a
+    /// Steam self-update can overwrite them with the stock binaries, bringing
+    /// back the black UI and the "Steam Service Error" dialog. Idempotent and a
+    /// no-op for programs without those specs.
+    private func ensureWebHelperWrapper(for program: Program, in bottle: Bottle) async {
+        guard let entry = catalog.entries.first(where: {
+            $0.installedWindowsPath == program.windowsPath
+                && ($0.webhelperWrapper != nil || $0.serviceStub != nil)
+        }) else { return }
+        let prefix = await bottleStore.prefixDirectory(of: bottle)
+        try? AppInstaller.applySteamBinaryFixups(entry: entry, prefix: prefix)
     }
 
     public func runExe(_ exe: URL, in bottle: Bottle) async {

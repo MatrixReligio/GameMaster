@@ -189,6 +189,10 @@ struct ProgramCard: View {
         appState.runningIDs.contains(program.id)
     }
 
+    private var isMigrating: Bool {
+        appState.migratingProgramID == program.id
+    }
+
     /// Stable, name-derived hue so each fallback card gets its own color.
     private var fallbackGradient: LinearGradient {
         var hash: UInt32 = 5381
@@ -241,17 +245,27 @@ struct ProgramCard: View {
             Text(program.name)
                 .font(.headline)
                 .lineLimit(1)
-            Button {
-                Task { await appState.launch(program: program, in: bottle) }
-            } label: {
-                Label(
-                    isRunning ? String(localized: "Running") : String(localized: "Play"),
-                    systemImage: "play.fill"
-                )
+            if isMigrating, let progress = appState.installProgress {
+                VStack(spacing: 4) {
+                    ProgressView(value: progress.fraction)
+                    Text(String(localized: "Upgrading runtime…"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 .frame(maxWidth: .infinity)
+            } else {
+                Button {
+                    Task { await appState.launch(program: program, in: bottle) }
+                } label: {
+                    Label(
+                        isRunning ? String(localized: "Running") : String(localized: "Play"),
+                        systemImage: "play.fill"
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isRunning)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(isRunning)
         }
         .padding(12)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))

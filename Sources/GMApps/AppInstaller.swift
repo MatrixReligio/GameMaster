@@ -14,6 +14,7 @@ public enum InstallPhase: Sendable, Equatable {
 public enum InstallError: Error, LocalizedError, Equatable {
     case installerFailed(name: String, exitCode: Int32)
     case programNotFound(name: String, path: String)
+    case bootstrapTimedOut(name: String)
 
     public var errorDescription: String? {
         switch self {
@@ -21,6 +22,8 @@ public enum InstallError: Error, LocalizedError, Equatable {
             String(localized: "The \(name) installer failed (exit code \(exitCode)). Please try again.")
         case let .programNotFound(name, _):
             String(localized: "The \(name) installer finished but the program wasn't found. Please try again.")
+        case let .bootstrapTimedOut(name):
+            String(localized: "\(name) did not finish downloading in time. Check your connection and try again.")
         }
     }
 }
@@ -75,6 +78,11 @@ public struct AppInstaller: Sendable {
         guard fm.fileExists(atPath: installedExe.path) else {
             throw InstallError.programNotFound(name: entry.name, path: entry.installedWindowsPath)
         }
+
+        // Bootstrap the real client (under the current 32-bit-capable runtime)
+        // and install the web-helper wrapper so the Steam UI isn't black.
+        try await bootstrapAndInstallWrapper(entry: entry, bottle: bottle, prefix: prefix, progress: progress)
+
         for config in entry.configFiles {
             let unix = WindowsPath.toUnix(config.windowsPath, prefix: prefix)
             try fm.createDirectory(at: unix.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -94,11 +102,108 @@ public struct AppInstaller: Sendable {
             bottleDirectory: bottleDirectory
         )
         var updated = bottle
+        // Switch the bottle to the run runtime (Steam bootstraps under GPTK but
+        // runs under a newer Wine whose CEF handshake actually completes).
+        if let runRuntimeID = entry.runRuntimeID {
+            updated.runtimeID = runRuntimeID
+        }
         updated.programs.removeAll { $0.windowsPath == entry.installedWindowsPath }
         updated.programs.append(program)
         try await bottleStore.save(updated)
 
         progress?(.done, 1)
         return program
+    }
+
+    /// Upgrades an already-installed program's bottle to its dual-runtime config:
+    /// bootstraps if needed, installs the web-helper wrapper, and switches the
+    /// bottle to the run runtime. For bottles created before that flow existed
+    /// (a Steam pinned under GPTK that would otherwise loop). The run runtime
+    /// must already be installed. Returns the updated bottle.
+    @discardableResult
+    public func migrate(
+        _ entry: InstallerCatalog.Entry,
+        in bottle: Bottle,
+        progress: (@Sendable (InstallPhase, Double) -> Void)?
+    ) async throws -> Bottle {
+        let prefix = await bottleStore.prefixDirectory(of: bottle)
+        try await bootstrapAndInstallWrapper(entry: entry, bottle: bottle, prefix: prefix, progress: progress)
+        var updated = bottle
+        if let runRuntimeID = entry.runRuntimeID {
+            updated.runtimeID = runRuntimeID
+        }
+        try await bottleStore.save(updated)
+        progress?(.done, 1)
+        return updated
+    }
+
+    /// Bootstrap the client (if not already), then apply the run-runtime binary
+    /// fixups: the CEF web-helper wrapper (black UI) and the service stub (Steam
+    /// Service Error dialog). Shared by first install and later migration.
+    private func bootstrapAndInstallWrapper(
+        entry: InstallerCatalog.Entry,
+        bottle: Bottle,
+        prefix: URL,
+        progress: (@Sendable (InstallPhase, Double) -> Void)?
+    ) async throws {
+        if entry.bootstrap != nil {
+            let exe = WindowsPath.toUnix(entry.installedWindowsPath, prefix: prefix)
+            try await runBootstrap(entry: entry, exe: exe, bottle: bottle, prefix: prefix, progress: progress)
+        }
+        try Self.applySteamBinaryFixups(entry: entry, prefix: prefix)
+    }
+
+    /// Installs the CEF wrapper and service stub for `entry` into `prefix`.
+    /// Idempotent; safe to re-run on every launch (see `AppState.launch`).
+    static func applySteamBinaryFixups(entry: InstallerCatalog.Entry, prefix: URL) throws {
+        if let wrapper = entry.webhelperWrapper,
+           let resource = SteamWebHelperWrapper.bundledResource(named: wrapper.wrapperResourceName) {
+            try SteamWebHelperWrapper.install(spec: wrapper, prefix: prefix, wrapperResource: resource)
+        }
+        if let stub = entry.serviceStub,
+           let resource = SteamServiceStub.bundledResource(named: stub.stubResourceName) {
+            try SteamServiceStub.install(spec: stub, prefix: prefix, stubResource: resource)
+        }
+    }
+
+    /// Launches the freshly-installed program (under `bottle`'s current runtime)
+    /// and polls until its readiness file reaches the expected size, then stops
+    /// it. This is Steam's first client download; it must complete before we
+    /// switch the bottle to a runtime whose 32-bit service crashes mid-download.
+    private func runBootstrap(
+        entry: InstallerCatalog.Entry,
+        exe: URL,
+        bottle: Bottle,
+        prefix: URL,
+        progress: (@Sendable (InstallPhase, Double) -> Void)?
+    ) async throws {
+        guard let spec = entry.bootstrap else { return }
+        let readyFile = WindowsPath.toUnix(spec.readyWindowsPath, prefix: prefix)
+        // Already bootstrapped (e.g. re-install over an existing prefix).
+        if Self.fileSize(of: readyFile) >= spec.readyMinBytes { return }
+
+        // wait:false — `wine start /unix` returns while Steam keeps running.
+        _ = try? await launcher.run(exe: exe, arguments: entry.launchArguments, in: bottle, wait: false)
+
+        let deadline = Date().addingTimeInterval(TimeInterval(spec.timeoutSeconds))
+        var ready = false
+        while Date() < deadline {
+            try await Task.sleep(nanoseconds: 3_000_000_000)
+            let size = Self.fileSize(of: readyFile)
+            progress?(.configuring, min(0.99, Double(size) / Double(spec.readyMinBytes)))
+            if size >= spec.readyMinBytes {
+                ready = true
+                break
+            }
+        }
+
+        try? await launcher.stopAll(in: bottle)
+        // Let wineserver release the prefix before we mutate files in it.
+        try await Task.sleep(nanoseconds: 2_000_000_000)
+        guard ready else { throw InstallError.bootstrapTimedOut(name: entry.name) }
+    }
+
+    private static func fileSize(of url: URL) -> Int {
+        (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
     }
 }

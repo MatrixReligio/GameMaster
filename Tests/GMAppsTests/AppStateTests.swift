@@ -38,6 +38,51 @@ private func makeRuntimeFixtureEntry(in dir: URL) async throws -> (URL, RuntimeM
     return (archive, entry)
 }
 
+/// Builds a Wine-Staging-shaped runtime tarball (single `wine` binary, new
+/// WoW64) and a manifest entry whose sha matches — the runtime Steam runs under.
+private func makeWineStagingFixtureEntry(in dir: URL) async throws -> (URL, RuntimeManifest.Entry) {
+    let tree = dir.appendingPathComponent("wtree/Wine Staging.app/Contents/Resources/wine/bin")
+    try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
+    try Data("#!/bin/sh\necho wine\n".utf8).write(to: tree.appendingPathComponent("wine"))
+    let archive = dir.appendingPathComponent("wine.tar.gz")
+    _ = try await SubprocessRunner().run(
+        executable: URL(fileURLWithPath: "/usr/bin/tar"),
+        arguments: ["-czf", archive.path, "-C", dir.appendingPathComponent("wtree").path, "Wine Staging.app"],
+        environment: nil,
+        currentDirectory: nil,
+        outputLine: nil
+    )
+    let entry = try RuntimeManifest.Entry(
+        id: "wine-staging-11.10",
+        displayVersion: "Wine Staging test",
+        url: #require(URL(string: "https://example.com/wine.tar.gz")),
+        sha256: SHA256.hexDigest(of: archive),
+        wineBinaryRelativePath: "Wine Staging.app/Contents/Resources/wine/bin/wine",
+        bundledGPTKVersion: nil
+    )
+    return (archive, entry)
+}
+
+/// Serves different fixtures per download URL, so one install flow can fetch both
+/// the GPTK runtime and the Steam run runtime.
+private struct MultiDownloader: Downloading {
+    let byLastComponent: [String: URL]
+
+    func download(from url: URL, to destination: URL, progress: (@Sendable (Double) -> Void)?) async throws {
+        guard let fixture = byLastComponent[url.lastPathComponent] else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.copyItem(at: fixture, to: destination)
+        progress?(1.0)
+    }
+}
+
 @MainActor
 private func makeState(dir: URL, fixture: URL, entry: RuntimeManifest.Entry, runner: FakeRunner) -> AppState {
     AppState(
@@ -102,14 +147,14 @@ struct AppStateTests {
         await state.createBottle(name: "B")
         let bottle = try #require(state.bottles.first)
 
-        // Simulate the installer producing steam.exe so the completion check passes.
+        // Simulate the installer producing steam.exe plus an already-downloaded
+        // steamui.dll, so the installer's bootstrap poll finds the client and
+        // doesn't wait out its (minutes-long) real-download timeout.
         let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
-        let steamExe = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.exe")
-        try FileManager.default.createDirectory(
-            at: steamExe.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data("MZ".utf8).write(to: steamExe)
+        let steamDir = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam")
+        try FileManager.default.createDirectory(at: steamDir, withIntermediateDirectories: true)
+        try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
+        try Data(count: 10_000_001).write(to: steamDir.appendingPathComponent("steamui.dll"))
 
         await state.installCatalogApp(id: "steam", into: bottle)
         #expect(state.lastErrorMessage == nil)
@@ -117,6 +162,106 @@ struct AppStateTests {
         #expect(updated.programs.count == 1)
         #expect(updated.programs.first?.name == "Steam")
         #expect(updated.programs.first?.pinned == true)
+    }
+
+    @Test func installSteamFetchesRunRuntimeAndSwitchesBottle() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (gptkFixture, gptkEntry) = try await makeRuntimeFixtureEntry(in: dir)
+        let (wineFixture, wineEntry) = try await makeWineStagingFixtureEntry(in: dir)
+        let downloader = MultiDownloader(byLastComponent: [
+            "runtime.tar.gz": gptkFixture,    // GPTK (default runtime)
+            "wine.tar.gz": wineFixture,       // Steam's run runtime
+            "SteamSetup.exe": gptkFixture     // content irrelevant; FakeRunner no-ops the install
+        ])
+        let manifest = RuntimeManifest(defaultRuntimeID: gptkEntry.id, entries: [gptkEntry, wineEntry])
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: downloader,
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: manifest,
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+
+        // Steam bootstrapped (steamui.dll present), so the installer skips the
+        // real download and proceeds to switch the bottle to the run runtime.
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        let steamDir = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam")
+        try FileManager.default.createDirectory(at: steamDir, withIntermediateDirectories: true)
+        try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
+        try Data(count: 10_000_001).write(to: steamDir.appendingPathComponent("steamui.dll"))
+
+        await state.installCatalogApp(id: "steam", into: bottle)
+        #expect(state.lastErrorMessage == nil)
+
+        // The run runtime was fetched (its metadata landed in the store), and the
+        // bottle now points at it.
+        let runtimeMeta = dir
+            .appendingPathComponent("approot/runtimes/wine-staging-11.10/runtime.json")
+        #expect(FileManager.default.fileExists(atPath: runtimeMeta.path))
+        let updated = try #require(state.bottles.first)
+        #expect(updated.runtimeID == "wine-staging-11.10")
+        #expect(updated.programs.contains { $0.name == "Steam" })
+    }
+
+    @Test func launchMigratesOldGptkSteamBottleToRunRuntime() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (gptkFixture, gptkEntry) = try await makeRuntimeFixtureEntry(in: dir)
+        let (wineFixture, wineEntry) = try await makeWineStagingFixtureEntry(in: dir)
+        let downloader = MultiDownloader(byLastComponent: [
+            "runtime.tar.gz": gptkFixture,
+            "wine.tar.gz": wineFixture
+        ])
+        let manifest = RuntimeManifest(defaultRuntimeID: gptkEntry.id, entries: [gptkEntry, wineEntry])
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: downloader,
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: manifest,
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        #expect(bottle.runtimeID == gptkEntry.id) // old bottle: still on GPTK
+
+        // Simulate a pre-fix Steam install: bootstrapped client (steamui.dll),
+        // genuine web helper, NO wrapper — the state that loops under GPTK.
+        let steamDir = dir
+            .appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+            .appendingPathComponent("drive_c/Program Files (x86)/Steam")
+        let cef = steamDir.appendingPathComponent("bin/cef/cef.win64")
+        try FileManager.default.createDirectory(at: cef, withIntermediateDirectories: true)
+        try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
+        try Data(count: 10_000_001).write(to: steamDir.appendingPathComponent("steamui.dll"))
+        try Data(count: 2_000_000).write(to: cef.appendingPathComponent("steamwebhelper.exe"))
+
+        let steam = Program(
+            name: "Steam",
+            windowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
+            pinned: true
+        )
+        await state.launch(program: steam, in: bottle)
+        #expect(state.lastErrorMessage == nil)
+
+        // Migrated: run runtime installed, bottle switched, wrapper installed.
+        let runtimeMeta = dir
+            .appendingPathComponent("approot/runtimes/wine-staging-11.10/runtime.json")
+        #expect(FileManager.default.fileExists(atPath: runtimeMeta.path))
+        let migrated = try #require(state.bottles.first { $0.id == bottle.id })
+        #expect(migrated.runtimeID == "wine-staging-11.10")
+        let helperSize = try FileManager.default
+            .attributesOfItem(atPath: cef.appendingPathComponent("steamwebhelper.exe").path)[.size] as? Int
+        #expect((helperSize ?? .max) < 1_000_000) // now the small wrapper, not the 2 MB genuine
+        #expect(FileManager.default.fileExists(atPath: cef.appendingPathComponent("steamwebhelper_real.exe").path))
+        // No longer migrating after completion.
+        #expect(state.migratingProgramID == nil)
     }
 
     @Test func errorsSurfaceAsMessages() async throws {

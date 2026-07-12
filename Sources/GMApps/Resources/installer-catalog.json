@@ -13,7 +13,26 @@
         "-allosarches",
         "-noverifyfiles"
       ],
-      "configFiles": []
+      "configFiles": [],
+      "bootstrap": {
+        "readyWindowsPath": "C:\\Program Files (x86)\\Steam\\steamui.dll",
+        "readyMinBytes": 10000000,
+        "timeoutSeconds": 900
+      },
+      "webhelperWrapper": {
+        "cefWindowsDirectory": "C:\\Program Files (x86)\\Steam\\bin\\cef\\cef.win64",
+        "helperFileName": "steamwebhelper.exe",
+        "realHelperFileName": "steamwebhelper_real.exe",
+        "wrapperResourceName": "steamwebhelper_wrapper"
+      },
+      "serviceStub": {
+        "windowsPaths": [
+          "C:\\Program Files (x86)\\Steam\\bin\\SteamService.exe",
+          "C:\\Program Files (x86)\\Common Files\\Steam\\steamservice.exe"
+        ],
+        "stubResourceName": "steamservice_stub"
+      },
+      "runRuntimeID": "wine-staging-11.10"
     }
   ]
 }
