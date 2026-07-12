@@ -21,6 +21,13 @@ public final class AppState {
     public private(set) var bottles: [Bottle] = []
     public private(set) var runtimeStatus: RuntimeStatus = .missing
     public private(set) var runningIDs: Set<UUID> = []
+    /// Programs launched but whose window hasn't appeared yet (cold start). The
+    /// card shows a "Starting…" spinner for these until `markProgramWindowReady`.
+    public private(set) var launchingIDs: Set<UUID> = []
+    /// Programs whose window has closed but whose process is still shutting down
+    /// (Steam takes tens of seconds to fully exit). The card shows "Closing…"
+    /// until the process exits and the button re-enables.
+    public private(set) var closingIDs: Set<UUID> = []
     /// Program currently being migrated to its run runtime on launch (so its card
     /// can show download progress instead of a plain "Running" state).
     public private(set) var migratingProgramID: UUID?
@@ -284,14 +291,44 @@ public final class AppState {
 
     public func launch(program: Program, in bottle: Bottle) async {
         runningIDs.insert(program.id)
+        // "Launching" spans the click until the program's window appears (or a
+        // safety timeout) — Steam's cold start under Wine takes tens of seconds,
+        // and the UI shows a spinner during it. The window is reported by the
+        // app layer via `markProgramWindowReady`; this timeout keeps the spinner
+        // from spinning forever if detection misses.
+        launchingIDs.insert(program.id)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(90))
+            self?.launchingIDs.remove(program.id)
+        }
         do {
             let bottle = try await migrateSteamBottleIfNeeded(program: program, in: bottle)
             await ensureWebHelperWrapper(for: program, in: bottle)
+            // `start /wait` returns only when the program's process fully exits —
+            // for Steam that's after its (slow) shutdown, which the "Closing…"
+            // state covers.
             _ = try await launcher.launch(program, in: bottle)
         } catch {
             report(error)
         }
         runningIDs.remove(program.id)
+        launchingIDs.remove(program.id)
+        closingIDs.remove(program.id)
+    }
+
+    /// Called by the app layer once the program's window is visible, to end the
+    /// "launching" spinner. No-op if already ended (timeout or exit).
+    public func markProgramWindowReady(_ programID: UUID) {
+        launchingIDs.remove(programID)
+    }
+
+    /// Called by the app layer when the program's window has closed while its
+    /// process is still exiting, so the card can show "Closing…" until the
+    /// `launch` call returns.
+    public func markProgramClosing(_ programID: UUID) {
+        guard runningIDs.contains(programID) else { return }
+        launchingIDs.remove(programID)
+        closingIDs.insert(programID)
     }
 
     /// Upgrades a Steam bottle created before the dual-runtime fix: downloads the

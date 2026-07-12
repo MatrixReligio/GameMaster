@@ -1,3 +1,4 @@
+import CoreGraphics
 import GMApps
 import GMModel
 import GMRuntime
@@ -193,6 +194,14 @@ struct ProgramCard: View {
         appState.migratingProgramID == program.id
     }
 
+    private var isLaunching: Bool {
+        appState.launchingIDs.contains(program.id)
+    }
+
+    private var isClosing: Bool {
+        appState.closingIDs.contains(program.id)
+    }
+
     /// Stable, name-derived hue so each fallback card gets its own color.
     private var fallbackGradient: LinearGradient {
         var hash: UInt32 = 5381
@@ -253,6 +262,14 @@ struct ProgramCard: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
+            } else if isLaunching || isClosing {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(isClosing ? String(localized: "Closing…") : String(localized: "Starting…"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
             } else {
                 Button {
                     Task { await appState.launch(program: program, in: bottle) }
@@ -267,6 +284,11 @@ struct ProgramCard: View {
                 .disabled(isRunning)
             }
         }
+        .task(id: isRunning) {
+            if isRunning {
+                await trackWindowLifecycle()
+            }
+        }
         .padding(12)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))
         .contextMenu {
@@ -274,6 +296,51 @@ struct ProgramCard: View {
                 Task { await appState.removeProgram(id: program.id, from: bottle) }
             }
         }
+    }
+
+    /// Drives the Starting… → Running → Closing… states off the Wine window
+    /// appearing and then disappearing. Uses window *owner* names only (available
+    /// without Screen Recording permission, unlike window titles). Baseline-
+    /// relative so a window from another running bottle isn't mistaken for this
+    /// program's. The final Running→idle transition is driven by the launch call
+    /// returning when the process fully exits.
+    private func trackWindowLifecycle() async {
+        let baseline = Self.wineWindowCount()
+        // Phase 1: wait for this program's window to appear.
+        var appeared = false
+        for _ in 0 ..< 90 {
+            if Task.isCancelled {
+                return
+            }
+            if Self.wineWindowCount() > baseline {
+                appeared = true
+                appState.markProgramWindowReady(program.id)
+                break
+            }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        guard appeared else { return }
+        // Phase 2: wait for the window to close (user quit) while the process
+        // finishes shutting down.
+        while !Task.isCancelled {
+            if Self.wineWindowCount() <= baseline {
+                appState.markProgramClosing(program.id)
+                return
+            }
+            try? await Task.sleep(for: .seconds(1))
+        }
+    }
+
+    /// Count of on-screen windows owned by a Wine process.
+    private static func wineWindowCount() -> Int {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return 0
+        }
+        return list.filter { info in
+            let owner = (info[kCGWindowOwnerName as String] as? String ?? "").lowercased()
+            return owner.contains("wine")
+        }.count
     }
 }
 
