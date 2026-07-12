@@ -1,5 +1,9 @@
 import Foundation
 
+// Test fixture builder: constants are known-valid and readability of the
+// byte-layout construction beats splitting it up.
+// swiftlint:disable force_unwrapping function_body_length
+
 /// Builds a minimal-but-valid PE32+ executable containing one RT_GROUP_ICON
 /// and one RT_ICON resource (a PNG payload, as modern .ico files embed).
 /// Layout: DOS header → PE sig → COFF → optional header (with resource data
