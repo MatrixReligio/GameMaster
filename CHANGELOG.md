@@ -4,6 +4,22 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] — 2026-07-12
+
+### Added
+- Launch feedback on the program card: clicking Play now shows a **Starting…**
+  spinner from click until the program's window appears (Steam's cold start
+  under Wine takes tens of seconds), and a **Closing…** spinner after you quit
+  until the process has fully exited and the button re-enables. Window detection
+  uses window owner names only, so it needs no Screen Recording permission.
+
+### Known limitations
+- D3D11 games launched through the Steam client (e.g. **CS2**) currently fail
+  with "Failed to create DirectX 11 render device" — the Wine 11 run runtime has
+  no D3D→Metal layer (D3DMetal belongs to GPTK). Adding Metal-backed D3D (DXMT or
+  DXVK) to the Steam bottle, or moving to a single wine32on64 runtime, is tracked
+  in `docs/handoff/2026-07-12-wine32on64-steam-experiment.md`.
+
 ## [0.2.0] — 2026-07-12
 
 ### Added
