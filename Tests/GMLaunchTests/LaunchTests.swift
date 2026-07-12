@@ -103,7 +103,7 @@ struct WineLauncherTests {
         let program = Program(
             name: "Steam",
             windowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
-            arguments: ["-allosarches", "-cef-force-32bit"],
+            arguments: ["-allosarches", "-noverifyfiles"],
             environment: ["PER_PROGRAM": "yes"]
         )
         let result = try await launcher.launch(program, in: env.bottle)
@@ -117,7 +117,7 @@ struct WineLauncherTests {
         #expect(invocation.arguments == [
             "start", "/wait", "/unix",
             prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.exe").path,
-            "-allosarches", "-cef-force-32bit"
+            "-allosarches", "-noverifyfiles"
         ])
         let procEnv = try #require(invocation.environment)
         #expect(procEnv["WINEPREFIX"] == prefix.path)
@@ -235,5 +235,32 @@ struct WindowsPathEdgeTests {
     @Test func lowercaseDriveLetterMapsToDosdevices() {
         let unix = WindowsPath.toUnix("d:\\games\\x.exe", prefix: prefix)
         #expect(unix.path == "/tmp/b/prefix/dosdevices/d:/games/x.exe")
+    }
+}
+
+@Suite("Launch argument sanitizing")
+struct LaunchArgumentSanitizingTests {
+    @Test func stripsDeadCefForce32bitFromLegacyPrograms() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let runner = FakeRunner()
+        let launcher = WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: runner,
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+        // A bottle created by an old app version pinned Steam with the dead flag.
+        let legacy = Program(
+            name: "Steam",
+            windowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
+            arguments: ["-allosarches", "-cef-force-32bit", "-noverifyfiles"]
+        )
+        _ = try await launcher.launch(legacy, in: env.bottle)
+        let invocation = try #require(runner.invocations.first)
+        #expect(!invocation.arguments.contains("-cef-force-32bit"))
+        #expect(invocation.arguments.contains("-allosarches"))
+        #expect(invocation.arguments.contains("-noverifyfiles"))
     }
 }

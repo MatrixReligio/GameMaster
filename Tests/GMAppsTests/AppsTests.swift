@@ -59,7 +59,11 @@ struct InstallerCatalogTests {
         #expect(steam.installerFileName == "SteamSetup.exe")
         #expect(steam.silentArguments == ["/S"])
         #expect(steam.installedWindowsPath == "C:\\Program Files (x86)\\Steam\\steam.exe")
-        #expect(steam.launchArguments == ["-allosarches", "-cef-force-32bit", "-noverifyfiles"])
+        // -cef-force-32bit is a dead 2023 workaround: Steam removed 32-bit CEF
+        // in 2024, and passing it now sends steamwebhelper into an infinite
+        // restart loop ("not responding"). Verified by reproduction.
+        #expect(steam.launchArguments == ["-allosarches", "-noverifyfiles"])
+        #expect(!steam.launchArguments.contains("-cef-force-32bit"))
         // No pre-written config files: steam.cfg (BootStrapperInhibitAll) at
         // install time blocks Steam's FIRST bootstrap update, so steamui.dll
         // never downloads and the client dies with "Failed to load steamui.dll".
@@ -118,7 +122,7 @@ struct AppInstallerTests {
         // Program registered, pinned, with verified launch flags.
         #expect(program.name == "Steam")
         #expect(program.pinned)
-        #expect(program.arguments == ["-allosarches", "-cef-force-32bit", "-noverifyfiles"])
+        #expect(program.arguments == ["-allosarches", "-noverifyfiles"])
         let saved = try await env.bottleStore.list().first
         #expect(saved?.programs == [program])
 

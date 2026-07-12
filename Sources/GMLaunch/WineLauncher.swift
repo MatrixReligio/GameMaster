@@ -89,12 +89,22 @@ public struct WineLauncher: Sendable {
         let exe = WindowsPath.toUnix(program.windowsPath, prefix: context.prefix)
         return try await start(
             exe: exe,
-            arguments: program.arguments,
+            arguments: Self.sanitizedArguments(program.arguments),
             extraEnvironment: program.environment,
             logName: program.name,
             context: context,
             wait: true
         )
+    }
+
+    /// Launch arguments that break current software and must be dropped even
+    /// from bottles saved by older app versions. `-cef-force-32bit` is a dead
+    /// 2023 Steam workaround: Steam removed 32-bit CEF in 2024, and passing it
+    /// now throws steamwebhelper into an infinite "not responding" restart loop.
+    static let deadArguments: Set<String> = ["-cef-force-32bit"]
+
+    static func sanitizedArguments(_ arguments: [String]) -> [String] {
+        arguments.filter { !deadArguments.contains($0) }
     }
 
     /// Runs an arbitrary executable (e.g. a dropped installer) in the bottle.

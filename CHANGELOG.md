@@ -4,6 +4,16 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] — 2026-07-12
+
+### Fixed
+- "Steamwebhelper is not responding" infinite restart loop: removed the
+  obsolete `-cef-force-32bit` launch flag. Steam removed 32-bit CEF in 2024,
+  so the flag no longer selects a 32-bit web helper (the client only ships
+  cef.win64) and sending it to a current client throws steamwebhelper into a
+  restart loop. New Steam entries launch with `-allosarches -noverifyfiles`;
+  the flag is also stripped at launch from programs pinned by older versions.
+
 ## [0.1.2] — 2026-07-12
 
 ### Added
