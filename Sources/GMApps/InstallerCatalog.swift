@@ -19,11 +19,24 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
         public var readyWindowsPath: String
         public var readyMinBytes: Int
         public var timeoutSeconds: Int
+        /// Arguments for the first-run bootstrap launch, when they must differ
+        /// from the entry's regular `launchArguments`. Steam needs this:
+        /// `-noverifyfiles` (a day-to-day startup speedup) makes the
+        /// bootstrapper skip installation verification — but on a fresh
+        /// install verification IS what triggers the client download, so
+        /// skipping it kills steam.exe with "Failed to load steamui.dll".
+        public var launchArguments: [String]?
 
-        public init(readyWindowsPath: String, readyMinBytes: Int, timeoutSeconds: Int) {
+        public init(
+            readyWindowsPath: String,
+            readyMinBytes: Int,
+            timeoutSeconds: Int,
+            launchArguments: [String]? = nil
+        ) {
             self.readyWindowsPath = readyWindowsPath
             self.readyMinBytes = readyMinBytes
             self.timeoutSeconds = timeoutSeconds
+            self.launchArguments = launchArguments
         }
     }
 

@@ -4,6 +4,31 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] — 2026-07-12
+
+### Fixed
+- **Fresh Steam installs actually work now.** Two independent bugs, both
+  reproduced end-to-end on a pristine bottle and fixed:
+  - The first-run bootstrap was launched with `-noverifyfiles` (a day-to-day
+    startup speedup), which makes Steam's bootstrapper *skip installation
+    verification* — but on a fresh install, verification is exactly what
+    triggers the client download. The bootstrapper concluded the stub install
+    was fine, steam.exe tried to load the not-yet-downloaded steamui.dll, and
+    died with "Failed to load steamui.dll". Confirmed in `bootstrap_log.txt`
+    ("Verification skipped"). The bootstrap now launches with `-allosarches`
+    only (catalog `bootstrap.launchArguments`); regular launches keep
+    `-noverifyfiles`. Installs that worked before were all bottles
+    bootstrapped by v0.1.0–0.1.2, which predate the flag.
+  - Even with the download running, the install stayed at "Configuring…"
+    forever: the readiness poll checked the file size via
+    `URL.resourceValues`, which **caches on the URL object** — the poll reused
+    one URL, read "missing" once, and never saw steamui.dll finish
+    downloading. The poll now stats the file fresh each round
+    (`FileManager.attributesOfItem`).
+
+### Added
+- Bottles can be **renamed** in Bottle Settings (name field at the top).
+
 ## [0.3.1] — 2026-07-12
 
 ### Fixed

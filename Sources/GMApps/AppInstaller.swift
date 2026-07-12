@@ -209,7 +209,8 @@ public struct AppInstaller: Sendable {
         }
 
         // wait:false — `wine start /unix` returns while Steam keeps running.
-        _ = try? await launcher.run(exe: exe, arguments: entry.launchArguments, in: bottle, wait: false)
+        let bootstrapArguments = spec.launchArguments ?? entry.launchArguments
+        _ = try? await launcher.run(exe: exe, arguments: bootstrapArguments, in: bottle, wait: false)
 
         let deadline = Date().addingTimeInterval(TimeInterval(spec.timeoutSeconds))
         var ready = false
@@ -236,7 +237,7 @@ public struct AppInstaller: Sendable {
                       relaunches < Self.maxBootstrapRelaunches {
                 try? await launcher.stopAll(in: bottle)
                 try await Task.sleep(nanoseconds: 2_000_000_000)
-                _ = try? await launcher.run(exe: exe, arguments: entry.launchArguments, in: bottle, wait: false)
+                _ = try? await launcher.run(exe: exe, arguments: bootstrapArguments, in: bottle, wait: false)
                 relaunches += 1
                 lastActivityAt = Date()
             }
@@ -268,7 +269,12 @@ public struct AppInstaller: Sendable {
         return (count, bytes)
     }
 
+    /// Stats the file fresh on every call. Deliberately NOT
+    /// `URL.resourceValues`: NSURL caches resource values on the URL object,
+    /// and the bootstrap poll reuses one URL — with caching it read "missing"
+    /// forever while steamui.dll finished downloading, hanging fresh installs
+    /// at "Configuring…" until the timeout.
     private static func fileSize(of url: URL) -> Int {
-        (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int) ?? 0
     }
 }

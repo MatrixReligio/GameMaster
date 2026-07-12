@@ -45,6 +45,10 @@ struct BottleSettingsSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
+                Section(String(localized: "Name")) {
+                    TextField(String(localized: "Bottle name"), text: $draft.name)
+                }
+
                 Section(String(localized: "Display")) {
                     HStack {
                         Toggle(String(localized: "Retina resolution"), isOn: $draft.settings.retinaMode)

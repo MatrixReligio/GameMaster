@@ -108,6 +108,13 @@ struct InstallerCatalogTests {
         #expect(bootstrap.readyWindowsPath == "C:\\Program Files (x86)\\Steam\\steamui.dll")
         #expect(bootstrap.readyMinBytes > 0)
         #expect(bootstrap.timeoutSeconds > 0)
+        // The bootstrap MUST NOT pass -noverifyfiles: a fresh install is only a
+        // stub Steam.exe, and skipping verification makes the bootstrapper skip
+        // the client download entirely — steam.exe then dies with "Failed to
+        // load steamui.dll". Verification IS the first-run download trigger.
+        let bootstrapArguments = try #require(bootstrap.launchArguments)
+        #expect(!bootstrapArguments.contains("-noverifyfiles"))
+        #expect(bootstrapArguments.contains("-allosarches"))
         let wrapper = try #require(steam.webhelperWrapper)
         #expect(wrapper.helperFileName == "steamwebhelper.exe")
         #expect(wrapper.realHelperFileName == "steamwebhelper_real.exe")
@@ -266,6 +273,54 @@ struct AppInstallerTests {
         #expect(saved.settings.advertiseAVX == true)
     }
 
+    /// The ready file appears only AFTER polling starts (the real first-install
+    /// timeline). Guards against stat caching: URL.resourceValues caches on the
+    /// URL object, which made the poll read "missing" forever and hang fresh
+    /// installs at "Configuring…" even after steamui.dll had fully downloaded.
+    @Test func bootstrapSeesReadyFileThatAppearsWhilePolling() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let fixture = env.root.appendingPathComponent("installer.exe")
+        try Data("MZ".utf8).write(to: fixture)
+        let installer = AppInstaller(
+            downloader: FakeDownloader(fixture: fixture),
+            launcher: env.launcher(),
+            bottleStore: env.bottleStore
+        )
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let steamDir = steamDirectory(in: prefix)
+        try FileManager.default.createDirectory(at: steamDir, withIntermediateDirectories: true)
+        try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
+
+        let entry = try InstallerCatalog.Entry(
+            id: "steam",
+            name: "Steam",
+            downloadURL: #require(URL(string: "https://example/SteamSetup.exe")),
+            installerFileName: "SteamSetup.exe",
+            silentArguments: ["/S"],
+            installedWindowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
+            launchArguments: [],
+            bootstrap: .init(
+                readyWindowsPath: "C:\\Program Files (x86)\\Steam\\steamui.dll",
+                readyMinBytes: 10_000_000,
+                timeoutSeconds: 60
+            ),
+            runRuntimeID: "sikarugir-10.0-6-dxmt-0.80"
+        )
+        // Deliver steamui.dll a few seconds into the poll, like a real download.
+        let dllPath = steamDir.appendingPathComponent("steamui.dll")
+        Task.detached {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            try? Data(count: 10_000_001).write(to: dllPath)
+        }
+        let started = Date()
+        _ = try await installer.install(entry, into: env.bottle, progress: nil)
+        // Completed shortly after the file landed — not at the 60 s timeout.
+        #expect(Date().timeIntervalSince(started) < 30)
+        let saved = try #require(await env.bottleStore.list().first)
+        #expect(saved.runtimeID == "sikarugir-10.0-6-dxmt-0.80")
+    }
+
     /// A clean-machine failure mode: Steam's first self-update dies (the user
     /// sees "Failed to load steamui.dll" and the client exits). The bootstrap
     /// poll must notice the stall — no download activity at all — and relaunch
@@ -293,11 +348,12 @@ struct AppInstallerTests {
             installerFileName: "SteamSetup.exe",
             silentArguments: ["/S"],
             installedWindowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
-            launchArguments: ["-allosarches"],
+            launchArguments: ["-allosarches", "-noverifyfiles"],
             bootstrap: .init(
                 readyWindowsPath: "C:\\Program Files (x86)\\Steam\\steamui.dll",
                 readyMinBytes: 10_000_000,
-                timeoutSeconds: 8
+                timeoutSeconds: 8,
+                launchArguments: ["-allosarches"]
             )
         )
         await #expect(throws: InstallError.bootstrapTimedOut(name: "Steam")) {
@@ -305,11 +361,15 @@ struct AppInstallerTests {
         }
         // steam.exe was started more than once (initial + at least one stall
         // relaunch), with a wineserver kill in between to clear the dead client.
-        let steamStarts = env.runner.invocations.count { invocation in
+        let steamStarts = env.runner.invocations.filter { invocation in
             invocation.arguments.contains { $0.hasSuffix("steam.exe") }
                 && invocation.arguments.contains("start")
         }
-        #expect(steamStarts >= 2)
+        #expect(steamStarts.count >= 2)
+        // Every bootstrap start uses the bootstrap-specific arguments —
+        // verification must run on a fresh install or nothing downloads.
+        #expect(steamStarts.allSatisfy { $0.arguments.contains("-allosarches") })
+        #expect(steamStarts.allSatisfy { !$0.arguments.contains("-noverifyfiles") })
         let kills = env.runner.invocations.count {
             $0.executable.hasSuffix("wineserver") && $0.arguments == ["-k"]
         }
