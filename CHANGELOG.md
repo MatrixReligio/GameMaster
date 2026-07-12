@@ -4,6 +4,18 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] — 2026-07-12
+
+### Fixed
+- **Fresh installs no longer hang at "Configuring Steam"** when Steam's first
+  self-update dies (the "Failed to load steamui.dll" dialog, most often seen
+  on clean machines with flaky access to Steam's CDN). The bootstrap now
+  watches the client's install tree for download activity; if nothing is
+  written for a minute it kills the dead client and relaunches it (up to 3
+  times) — Steam resumes the download where it stopped. If the download still
+  can't finish, the install fails with the existing "check your connection"
+  error instead of appearing stuck.
+
 ## [0.3.0] — 2026-07-12
 
 ### Fixed

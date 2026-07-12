@@ -266,6 +266,56 @@ struct AppInstallerTests {
         #expect(saved.settings.advertiseAVX == true)
     }
 
+    /// A clean-machine failure mode: Steam's first self-update dies (the user
+    /// sees "Failed to load steamui.dll" and the client exits). The bootstrap
+    /// poll must notice the stall — no download activity at all — and relaunch
+    /// steam.exe instead of waiting out the full timeout doing nothing.
+    @Test func bootstrapRelaunchesSteamWhenDownloadStalls() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let fixture = env.root.appendingPathComponent("installer.exe")
+        try Data("MZ".utf8).write(to: fixture)
+        let installer = AppInstaller(
+            downloader: FakeDownloader(fixture: fixture),
+            launcher: env.launcher(),
+            bottleStore: env.bottleStore,
+            bootstrapStallSeconds: 0.5
+        )
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let steamDir = steamDirectory(in: prefix)
+        try FileManager.default.createDirectory(at: steamDir, withIntermediateDirectories: true)
+        try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
+
+        let entry = try InstallerCatalog.Entry(
+            id: "steam",
+            name: "Steam",
+            downloadURL: #require(URL(string: "https://example/SteamSetup.exe")),
+            installerFileName: "SteamSetup.exe",
+            silentArguments: ["/S"],
+            installedWindowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
+            launchArguments: ["-allosarches"],
+            bootstrap: .init(
+                readyWindowsPath: "C:\\Program Files (x86)\\Steam\\steamui.dll",
+                readyMinBytes: 10_000_000,
+                timeoutSeconds: 8
+            )
+        )
+        await #expect(throws: InstallError.bootstrapTimedOut(name: "Steam")) {
+            _ = try await installer.install(entry, into: env.bottle, progress: nil)
+        }
+        // steam.exe was started more than once (initial + at least one stall
+        // relaunch), with a wineserver kill in between to clear the dead client.
+        let steamStarts = env.runner.invocations.count { invocation in
+            invocation.arguments.contains { $0.hasSuffix("steam.exe") }
+                && invocation.arguments.contains("start")
+        }
+        #expect(steamStarts >= 2)
+        let kills = env.runner.invocations.count {
+            $0.executable.hasSuffix("wineserver") && $0.arguments == ["-k"]
+        }
+        #expect(kills >= 2) // stall relaunch + final cleanup
+    }
+
     @Test func bootstrapTimesOutWhenClientNeverDownloads() async throws {
         let env = try await makeEnv()
         defer { try? FileManager.default.removeItem(at: env.root) }

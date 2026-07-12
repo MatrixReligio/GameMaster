@@ -34,11 +34,21 @@ public struct AppInstaller: Sendable {
     private let downloader: any Downloading
     private let launcher: WineLauncher
     private let bottleStore: BottleStore
+    /// How long the bootstrap download may show zero activity before the
+    /// client is presumed dead (e.g. "Failed to load steamui.dll" and exit)
+    /// and gets relaunched. Injectable so tests don't wait a real minute.
+    private let bootstrapStallSeconds: TimeInterval
 
-    public init(downloader: any Downloading, launcher: WineLauncher, bottleStore: BottleStore) {
+    public init(
+        downloader: any Downloading,
+        launcher: WineLauncher,
+        bottleStore: BottleStore,
+        bootstrapStallSeconds: TimeInterval = 60
+    ) {
         self.downloader = downloader
         self.launcher = launcher
         self.bottleStore = bottleStore
+        self.bootstrapStallSeconds = bootstrapStallSeconds
     }
 
     @discardableResult
@@ -203,6 +213,9 @@ public struct AppInstaller: Sendable {
 
         let deadline = Date().addingTimeInterval(TimeInterval(spec.timeoutSeconds))
         var ready = false
+        var relaunches = 0
+        var lastActivity = Self.bootstrapActivity(around: readyFile)
+        var lastActivityAt = Date()
         while Date() < deadline {
             try await Task.sleep(nanoseconds: 3_000_000_000)
             let size = Self.fileSize(of: readyFile)
@@ -211,12 +224,48 @@ public struct AppInstaller: Sendable {
                 ready = true
                 break
             }
+            // Stall detection: if the client's install tree shows no writes at
+            // all for a while, the client died or its self-update hung (the
+            // clean-machine "Failed to load steamui.dll" case). Kill leftovers
+            // and relaunch — the bootstrap download resumes where it stopped.
+            let activity = Self.bootstrapActivity(around: readyFile)
+            if activity != lastActivity {
+                lastActivity = activity
+                lastActivityAt = Date()
+            } else if Date().timeIntervalSince(lastActivityAt) >= bootstrapStallSeconds,
+                      relaunches < Self.maxBootstrapRelaunches {
+                try? await launcher.stopAll(in: bottle)
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+                _ = try? await launcher.run(exe: exe, arguments: entry.launchArguments, in: bottle, wait: false)
+                relaunches += 1
+                lastActivityAt = Date()
+            }
         }
 
         try? await launcher.stopAll(in: bottle)
         // Let wineserver release the prefix before we mutate files in it.
         try await Task.sleep(nanoseconds: 2_000_000_000)
         guard ready else { throw InstallError.bootstrapTimedOut(name: entry.name) }
+    }
+
+    private static let maxBootstrapRelaunches = 3
+
+    /// Cheap fingerprint of download progress: file count + total bytes of the
+    /// client's install directory (top level and its `package/` download area).
+    /// Any write the bootstrapper makes changes it.
+    private static func bootstrapActivity(around readyFile: URL) -> (count: Int, bytes: Int) {
+        let fm = FileManager.default
+        let installDir = readyFile.deletingLastPathComponent()
+        var count = 0
+        var bytes = 0
+        for dir in [installDir, installDir.appendingPathComponent("package")] {
+            guard let children = try? fm.contentsOfDirectory(
+                at: dir, includingPropertiesForKeys: [.fileSizeKey], options: []
+            ) else { continue }
+            count += children.count
+            bytes += children.reduce(0) { $0 + (Self.fileSize(of: $1)) }
+        }
+        return (count, bytes)
     }
 
     private static func fileSize(of url: URL) -> Int {
