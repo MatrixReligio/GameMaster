@@ -1,6 +1,62 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ could not reach its download servers. Check your network or proxy, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 无法连接到其下载服务器。请检查网络或代理后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 無法連接到其下載伺服器。請檢查網路或代理後重試。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ はダウンロードサーバーに接続できませんでした。ネットワークまたはプロキシを確認して、もう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@이(가) 다운로드 서버에 연결할 수 없습니다. 네트워크 또는 프록시를 확인한 후 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "%@ did not finish downloading in time. Check your connection and try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 未能在预期时间内完成下载。请检查网络连接后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 未能在預期時間內完成下載。請檢查網路連線後重試。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のダウンロードが時間内に完了しませんでした。ネットワーク接続を確認して、もう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@이(가) 제시간에 다운로드를 완료하지 못했습니다. 네트워크 연결을 확인한 후 다시 시도하세요."
+          }
+        }
+      }
+    },
     "Add to Library and Run": {
       "localizations": {
         "ja": {
@@ -449,6 +505,62 @@
         }
       }
     },
+    "Could not open the disk image (hdiutil exit %@).": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开磁盘映像（hdiutil 退出码 %@）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法打開磁碟映像檔（hdiutil 結束代碼 %@）。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスクイメージを開けませんでした（hdiutil 終了コード %@）。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "디스크 이미지를 열 수 없습니다(hdiutil 종료 코드 %@)."
+          }
+        }
+      }
+    },
+    "Could not unpack the archive (tar exit %@).": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法解压归档（tar 退出码 %@）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法解壓縮封存檔（tar 結束代碼 %@）。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アーカイブを展開できませんでした（tar 終了コード %@）。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "아카이브를 풀 수 없습니다(tar 종료 코드 %@)."
+          }
+        }
+      }
+    },
     "Create Bottle": {
       "localizations": {
         "ja": {
@@ -781,6 +893,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "下載並安裝"
+          }
+        }
+      }
+    },
+    "Download failed with HTTP status %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载失败（HTTP 状态码 %@）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載失敗（HTTP 狀態碼 %@）。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードに失敗しました（HTTP ステータス %@）。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다운로드에 실패했습니다(HTTP 상태 %@)."
           }
         }
       }
@@ -1597,6 +1737,34 @@
         }
       }
     },
+    "No runtime is configured for this build.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此构建未配置任何运行时。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本未設定任何執行階段。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このビルドにはランタイムが設定されていません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 빌드에는 런타임이 구성되어 있지 않습니다."
+          }
+        }
+      }
+    },
     "None": {
       "localizations": {
         "ja": {
@@ -2269,6 +2437,34 @@
         }
       }
     },
+    "Runtime “%@” is not installed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行时“%@”未安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "執行階段「%@」未安裝。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ランタイム「%@」がインストールされていません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "런타임 \"%@\"이(가) 설치되어 있지 않습니다."
+          }
+        }
+      }
+    },
     "Save": {
       "localizations": {
         "ja": {
@@ -2549,6 +2745,286 @@
         }
       }
     },
+    "The %@ installer failed (exit code %@). Please try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 安装程序失败（退出码 %@）。请重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 安裝程式失敗（結束代碼 %@）。請重試。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のインストーラーが失敗しました（終了コード %@）。もう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 설치 프로그램이 실패했습니다(종료 코드 %@). 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "The %@ installer finished but the program wasn't found. Please try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 安装程序已结束，但未找到安装后的程序。请重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 安裝程式已結束，但未找到安裝後的程式。請重試。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ のインストーラーは終了しましたが、プログラムが見つかりませんでした。もう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 설치가 끝났지만 프로그램을 찾을 수 없습니다. 다시 시도하세요."
+          }
+        }
+      }
+    },
+    "The Windows runtime is not installed yet. Open Settings → Runtime to install it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Windows 运行时尚未安装。请打开“设置 → 运行时”进行安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Windows 執行階段尚未安裝。請打開「設定 → 執行階段」進行安裝。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Windows ランタイムがまだインストールされていません。「設定 → ランタイム」からインストールしてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Windows 런타임이 아직 설치되지 않았습니다. '설정 → 런타임'에서 설치하세요."
+          }
+        }
+      }
+    },
+    "The built-in runtime manifest is missing or corrupted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内置运行时清单缺失或已损坏。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "內建執行階段清單遺失或已損毀。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内蔵ランタイムマニフェストが見つからないか破損しています。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내장 런타임 매니페스트가 없거나 손상되었습니다."
+          }
+        }
+      }
+    },
+    "The disk image did not produce a mountable volume.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "磁盘映像未产生可挂载的卷。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "磁碟映像檔未產生可掛載的卷宗。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ディスクイメージからマウント可能なボリュームが得られませんでした。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "디스크 이미지에서 마운트 가능한 볼륨을 만들지 못했습니다."
+          }
+        }
+      }
+    },
+    "The downloaded file failed verification. Please try downloading again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的文件未通过校验。请重新下载。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載的檔案未通過驗證。請重新下載。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードしたファイルの検証に失敗しました。もう一度ダウンロードしてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다운로드한 파일이 검증에 실패했습니다. 다시 다운로드해 보세요."
+          }
+        }
+      }
+    },
+    "The downloaded runtime has an unexpected layout.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的运行时目录结构异常。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載的執行階段目錄結構異常。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードしたランタイムのレイアウトが想定と異なります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다운로드한 런타임의 구조가 예상과 다릅니다."
+          }
+        }
+      }
+    },
+    "This bottle no longer exists on disk.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此游戏瓶在磁盘上已不存在。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此遊戲瓶在磁碟上已不存在。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このボトルはディスク上に存在しません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 보틀은 더 이상 디스크에 존재하지 않습니다."
+          }
+        }
+      }
+    },
+    "This disk image doesn’t look like Apple’s “Evaluation environment for Windows games”. Download it from developer.apple.com/download (search for “Evaluation environment”).": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此磁盘映像看起来不是 Apple 的“Evaluation environment for Windows games”。请前往 developer.apple.com/download 下载（搜索“Evaluation environment”）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此磁碟映像檔看起來不是 Apple 的「Evaluation environment for Windows games」。請前往 developer.apple.com/download 下載（搜尋「Evaluation environment」）。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクイメージは Apple の「Evaluation environment for Windows games」ではないようです。developer.apple.com/download からダウンロードしてください（「Evaluation environment」で検索）。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 디스크 이미지는 Apple의 \"Evaluation environment for Windows games\"가 아닌 것 같습니다. developer.apple.com/download에서 다운로드하세요(\"Evaluation environment\" 검색)."
+          }
+        }
+      }
+    },
+    "Unknown installer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知的安装项。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知的安裝項目。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不明なインストーラーです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "알 수 없는 설치 항목입니다."
+          }
+        }
+      }
+    },
     "Unpacking…": {
       "localizations": {
         "ja": {
@@ -2713,6 +3189,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的執行環境已內建 DirectX 11/12 轉換。若要更新到 Apple 最新版本，請從 Apple 下載「Evaluation environment for Windows games」（需要免費 Apple ID），然後在此匯入該 DMG。"
+          }
+        }
+      }
+    },
+    "“%@” failed (exit code %@). Check the bottle's logs for details.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”运行失败（退出码 %@）。详情请查看游戏瓶日志。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」執行失敗（結束代碼 %@）。詳情請查看遊戲瓶日誌。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」が失敗しました（終了コード %@）。詳細はボトルのログを確認してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\"이(가) 실패했습니다(종료 코드 %@). 자세한 내용은 보틀 로그를 확인하세요."
           }
         }
       }

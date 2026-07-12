@@ -15,6 +15,7 @@ public enum InstallError: Error, LocalizedError, Equatable {
     case installerFailed(name: String, exitCode: Int32)
     case programNotFound(name: String, path: String)
     case bootstrapTimedOut(name: String)
+    case bootstrapOffline(name: String)
 
     public var errorDescription: String? {
         switch self {
@@ -24,6 +25,10 @@ public enum InstallError: Error, LocalizedError, Equatable {
             String(localized: "The \(name) installer finished but the program wasn't found. Please try again.")
         case let .bootstrapTimedOut(name):
             String(localized: "\(name) did not finish downloading in time. Check your connection and try again.")
+        case let .bootstrapOffline(name):
+            String(
+                localized: "\(name) could not reach its download servers. Check your network or proxy, then try again."
+            )
         }
     }
 }
@@ -70,6 +75,12 @@ public struct AppInstaller: Sendable {
         }
 
         progress?(.installing, 0)
+        // A previous failed attempt can leave the client running in the bottle
+        // (quitting the app doesn't always kill wine children). The installer
+        // then can't replace locked files and aborts with exit code 2 — so
+        // clear the bottle first; on a quiet bottle this is a no-op.
+        try? await launcher.stopAll(in: bottle)
+        try await Task.sleep(nanoseconds: 2_000_000_000)
         let result = try await launcher.run(
             exe: installerFile,
             arguments: entry.silentArguments,
@@ -212,9 +223,12 @@ public struct AppInstaller: Sendable {
         let bootstrapArguments = spec.launchArguments ?? entry.launchArguments
         _ = try? await launcher.run(exe: exe, arguments: bootstrapArguments, in: bottle, wait: false)
 
+        let failureLog = spec.failureLogWindowsPath.map { WindowsPath.toUnix($0, prefix: prefix) }
         let deadline = Date().addingTimeInterval(TimeInterval(spec.timeoutSeconds))
         var ready = false
+        var offline = false
         var relaunches = 0
+        var handledFailures = 0
         var lastActivity = Self.bootstrapActivity(around: readyFile)
         var lastActivityAt = Date()
         while Date() < deadline {
@@ -225,6 +239,27 @@ public struct AppInstaller: Sendable {
                 ready = true
                 break
             }
+
+            // Download-failure detection: the bootstrapper logs each failed
+            // attempt (e.g. Steam's "Download failed" when its CDN is
+            // unreachable). Retry immediately — CDN hiccups are transient —
+            // and once the relaunch budget is spent, fail fast with a network
+            // error instead of sitting out the full timeout.
+            let failures = Self.failureCount(in: failureLog, patterns: spec.failureLogPatterns)
+            if failures > Self.maxBootstrapRelaunches {
+                offline = true
+                break
+            }
+            if failures > handledFailures {
+                handledFailures = failures
+                try? await launcher.stopAll(in: bottle)
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+                _ = try? await launcher.run(exe: exe, arguments: bootstrapArguments, in: bottle, wait: false)
+                relaunches += 1
+                lastActivityAt = Date()
+                continue
+            }
+
             // Stall detection: if the client's install tree shows no writes at
             // all for a while, the client died or its self-update hung (the
             // clean-machine "Failed to load steamui.dll" case). Kill leftovers
@@ -246,7 +281,20 @@ public struct AppInstaller: Sendable {
         try? await launcher.stopAll(in: bottle)
         // Let wineserver release the prefix before we mutate files in it.
         try await Task.sleep(nanoseconds: 2_000_000_000)
+        if offline {
+            throw InstallError.bootstrapOffline(name: entry.name)
+        }
         guard ready else { throw InstallError.bootstrapTimedOut(name: entry.name) }
+    }
+
+    /// Counts failed download attempts recorded in the bootstrapper's log —
+    /// the log is append-only across relaunches, so the count only grows.
+    private static func failureCount(in log: URL?, patterns: [String]?) -> Int {
+        guard let log, let patterns, !patterns.isEmpty,
+              let content = try? String(contentsOf: log, encoding: .utf8) else { return 0 }
+        return content.components(separatedBy: "\n").count { line in
+            patterns.contains { line.contains($0) }
+        }
     }
 
     private static let maxBootstrapRelaunches = 3

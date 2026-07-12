@@ -219,13 +219,28 @@ public struct WineLauncher: Sendable {
         var environment = context.environment
         environment.merge(extraEnvironment) { _, program in program }
 
+        // `start /unix` lets wine handle .exe, .msi, and .lnk uniformly.
+        let startArguments = wait ? ["start", "/wait", "/unix"] : ["start", "/unix"]
+
+        // Fire-and-forget launches must NOT capture output: the wine `start`
+        // helper exits immediately but the launched program inherits the
+        // output pipe, so waiting for its EOF would block until the whole
+        // program tree exits — exactly what wait:false is meant to avoid.
+        guard wait else {
+            return try await runner.run(
+                executable: context.wineBinary,
+                arguments: startArguments + [exe.path] + arguments,
+                environment: environment,
+                currentDirectory: nil,
+                outputLine: nil
+            )
+        }
+
         let log = try makeLogFile(
             bottleDirectoryName: context.prefix
                 .deletingLastPathComponent().lastPathComponent,
             logName: logName
         )
-        // `start /unix` lets wine handle .exe, .msi, and .lnk uniformly.
-        let startArguments = wait ? ["start", "/wait", "/unix"] : ["start", "/unix"]
         return try await runner.run(
             executable: context.wineBinary,
             arguments: startArguments + [exe.path] + arguments,

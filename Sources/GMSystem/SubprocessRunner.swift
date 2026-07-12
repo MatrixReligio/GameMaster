@@ -23,6 +23,27 @@ public struct SubprocessRunner: ProcessRunning {
             process.currentDirectoryURL = currentDirectory
         }
 
+        // No output requested → no pipe. This is not just an optimization:
+        // helpers like `wine start /unix` exit immediately while the program
+        // they spawned inherits the pipe's write end. Waiting for EOF then
+        // blocks until that whole process tree exits (Steam's bootstrap hung
+        // "Configuring…" forever this way). With the null device, completion
+        // is the helper's termination alone.
+        guard outputLine != nil else {
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            return try await withCheckedThrowingContinuation { continuation in
+                process.terminationHandler = { finished in
+                    continuation.resume(returning: ProcessResult(exitCode: finished.terminationStatus))
+                }
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe

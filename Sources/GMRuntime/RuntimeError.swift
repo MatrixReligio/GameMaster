@@ -18,10 +18,11 @@ public enum RuntimeError: Error, LocalizedError, Equatable {
         case let .runtimeNotInstalled(id):
             String(localized: "Runtime “\(id)” is not installed.")
         case .dmgLayoutUnrecognized:
-            String(localized: """
-            This disk image doesn’t look like Apple’s “Evaluation environment for Windows games”.
-            Download it from developer.apple.com/download (search for “Evaluation environment”).
-            """)
+            // swiftlint:disable line_length
+            String(
+                localized: "This disk image doesn’t look like Apple’s “Evaluation environment for Windows games”. Download it from developer.apple.com/download (search for “Evaluation environment”)."
+            )
+            // swiftlint:enable line_length
         }
     }
 }

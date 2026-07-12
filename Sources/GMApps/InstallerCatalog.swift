@@ -26,17 +26,29 @@ public struct InstallerCatalog: Codable, Sendable, Equatable {
         /// install verification IS what triggers the client download, so
         /// skipping it kills steam.exe with "Failed to load steamui.dll".
         public var launchArguments: [String]?
+        /// Log file (Windows path) the bootstrapper writes, plus substrings
+        /// that mark a failed download attempt in it. Each new match counts as
+        /// one failed attempt: the client is relaunched immediately (CDN
+        /// hiccups are often transient), and once the relaunch budget is spent
+        /// the install fails fast with a network error instead of sitting out
+        /// the full timeout. Steam: "Download failed" in bootstrap_log.txt.
+        public var failureLogWindowsPath: String?
+        public var failureLogPatterns: [String]?
 
         public init(
             readyWindowsPath: String,
             readyMinBytes: Int,
             timeoutSeconds: Int,
-            launchArguments: [String]? = nil
+            launchArguments: [String]? = nil,
+            failureLogWindowsPath: String? = nil,
+            failureLogPatterns: [String]? = nil
         ) {
             self.readyWindowsPath = readyWindowsPath
             self.readyMinBytes = readyMinBytes
             self.timeoutSeconds = timeoutSeconds
             self.launchArguments = launchArguments
+            self.failureLogWindowsPath = failureLogWindowsPath
+            self.failureLogPatterns = failureLogPatterns
         }
     }
 

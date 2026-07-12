@@ -30,6 +30,25 @@ struct SubprocessRunnerTests {
         #expect(lines.contains("err1"))
     }
 
+    /// A launcher-style helper exits immediately while its child keeps the
+    /// inherited stdio open (`wine start /unix` spawning Steam). With no
+    /// outputLine there is no pipe, so run() must return when the HELPER
+    /// exits — not block until the child's tree closes the pipe. This hung
+    /// fresh Steam installs at "Configuring…" for the client's whole lifetime.
+    @Test func returnsOnHelperExitWhenNoOutputRequested() async throws {
+        let runner = SubprocessRunner()
+        let started = Date()
+        let result = try await runner.run(
+            executable: URL(fileURLWithPath: "/bin/sh"),
+            arguments: ["-c", "sleep 30 & exit 0"],
+            environment: nil,
+            currentDirectory: nil,
+            outputLine: nil
+        )
+        #expect(result.exitCode == 0)
+        #expect(Date().timeIntervalSince(started) < 5)
+    }
+
     @Test func mergesProvidedEnvironmentOverInherited() async throws {
         let runner = SubprocessRunner()
         let collected = Mutex<[String]>([])

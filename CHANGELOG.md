@@ -4,6 +4,32 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.3] — 2026-07-12
+
+### Fixed
+- **The real reason fresh installs sat at "Configuring…" for the client's
+  whole lifetime**: launching Steam fire-and-forget (`wine start /unix`) waited
+  for the output pipe to reach EOF — but the `start` helper exits instantly
+  while Steam inherits the pipe, so the await only returned when Steam itself
+  died (e.g. the user dismissing a fatal dialog). The readiness poll never even
+  started; not even the timeout could fire. Fire-and-forget launches no longer
+  capture output (no pipe, completion = helper exit), pinned by a regression
+  test that fails in 30 s of hang without the fix.
+- **Steam CDN failures now fail fast with a clear message.** The bootstrap
+  watches Steam's own `bootstrap_log.txt` for terminal failure lines ("Steam
+  needs to be online to update", "Failed to determine download location" — the
+  live-lock where two packages 404 but the updater keeps spinning). Each hit
+  triggers an immediate relaunch (CDN hiccups are transient — verified: a
+  failed round succeeded on relaunch); once the retry budget is spent the
+  install stops with a network error instead of burning the 15-minute timeout.
+- **"The Steam installer failed (exit code 2)" on reinstall**: a previous
+  failed attempt can leave the client running in the bottle (quitting the app
+  doesn't always kill wine children), and the NSIS installer can't replace the
+  locked files. The bottle is now stopped before the installer runs.
+- Error messages from the engine (install failures, runtime errors, launch
+  errors) are now localized in all four languages — they were English-only,
+  and the CI localization gate now covers the engine sources too.
+
 ## [0.3.2] — 2026-07-12
 
 ### Fixed

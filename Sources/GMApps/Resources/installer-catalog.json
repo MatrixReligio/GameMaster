@@ -20,6 +20,11 @@
         "timeoutSeconds": 900,
         "launchArguments": [
           "-allosarches"
+        ],
+        "failureLogWindowsPath": "C:\\Program Files (x86)\\Steam\\logs\\bootstrap_log.txt",
+        "failureLogPatterns": [
+          "Steam needs to be online to update",
+          "Failed to determine download location"
         ]
       },
       "webhelperWrapper": {

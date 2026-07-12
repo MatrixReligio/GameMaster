@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI guard: every String(localized:) key in App/Sources must exist in
+"""CI guard: every String(localized:) key in App/Sources and Sources must exist in
 Localizable.xcstrings with translations for all supported languages, and the
 catalog must not contain dead keys."""
 import json
@@ -17,9 +17,13 @@ LANGS = ["zh-Hans", "zh-Hant", "ja", "ko"]
 PATTERN = re.compile(r'localized:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL)
 
 
+SCAN_DIRS = ["App/Sources", "Sources"]
+
+
 def used_keys() -> set[str]:
     keys: set[str] = set()
-    for swift in (ROOT / "App/Sources").rglob("*.swift"):
+    for scan in SCAN_DIRS:
+      for swift in (ROOT / scan).rglob("*.swift"):
         for match in PATTERN.finditer(swift.read_text(encoding="utf-8")):
             literal = match.group(1)
             key = re.sub(r"\\\((?:[^()]|\([^()]*\))*\)", "%@", literal)
