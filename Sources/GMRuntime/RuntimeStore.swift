@@ -50,5 +50,4 @@ public actor RuntimeStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(descriptor).write(to: dir.appendingPathComponent("runtime.json"))
     }
-
 }
