@@ -60,9 +60,10 @@ struct InstallerCatalogTests {
         #expect(steam.silentArguments == ["/S"])
         #expect(steam.installedWindowsPath == "C:\\Program Files (x86)\\Steam\\steam.exe")
         #expect(steam.launchArguments == ["-allosarches", "-cef-force-32bit", "-noverifyfiles"])
-        let config = try #require(steam.configFiles.first)
-        #expect(config.windowsPath == "C:\\Program Files (x86)\\Steam\\steam.cfg")
-        #expect(config.contents == "BootStrapperInhibitAll=Enable\n")
+        // No pre-written config files: steam.cfg (BootStrapperInhibitAll) at
+        // install time blocks Steam's FIRST bootstrap update, so steamui.dll
+        // never downloads and the client dies with "Failed to load steamui.dll".
+        #expect(steam.configFiles.isEmpty)
     }
 }
 
@@ -109,9 +110,10 @@ struct AppInstallerTests {
         #expect(invocation.arguments.last == "/S")
         #expect(invocation.arguments.contains { $0.hasSuffix("SteamSetup.exe") })
 
-        // steam.cfg written into the prefix at the catalog-specified path.
+        // steam.cfg must NOT be pre-written — it would block the first
+        // bootstrap update (missing steamui.dll).
         let cfg = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.cfg")
-        #expect(try String(contentsOf: cfg, encoding: .utf8) == "BootStrapperInhibitAll=Enable\n")
+        #expect(!FileManager.default.fileExists(atPath: cfg.path))
 
         // Program registered, pinned, with verified launch flags.
         #expect(program.name == "Steam")

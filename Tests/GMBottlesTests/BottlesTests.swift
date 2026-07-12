@@ -160,6 +160,8 @@ struct EnvironmentComposerTests {
 @Suite("RegistryTweaks")
 struct RegistryTweaksTests {
     @Test func retinaRegContent() {
+        // Retina rendering needs matching 2x Windows DPI (192), or every UI
+        // element draws at half size (tiny fonts).
         let on = RegistryTweaks.retinaRegContent(enabled: true)
         #expect(on == """
         Windows Registry Editor Version 5.00
@@ -167,9 +169,14 @@ struct RegistryTweaksTests {
         [HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]
         "RetinaMode"="y"
 
+        [HKEY_CURRENT_USER\\Control Panel\\Desktop]
+        "LogPixels"=dword:000000c0
+
         """)
         let off = RegistryTweaks.retinaRegContent(enabled: false)
         #expect(off.contains("\"RetinaMode\"=\"n\""))
+        // Non-retina restores the standard 96 DPI.
+        #expect(off.contains("\"LogPixels\"=dword:00000060"))
     }
 }
 

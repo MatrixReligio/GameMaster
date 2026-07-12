@@ -5,15 +5,16 @@
       "name": "Steam",
       "downloadURL": "https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe",
       "installerFileName": "SteamSetup.exe",
-      "silentArguments": ["/S"],
+      "silentArguments": [
+        "/S"
+      ],
       "installedWindowsPath": "C:\\Program Files (x86)\\Steam\\steam.exe",
-      "launchArguments": ["-allosarches", "-cef-force-32bit", "-noverifyfiles"],
-      "configFiles": [
-        {
-          "windowsPath": "C:\\Program Files (x86)\\Steam\\steam.cfg",
-          "contents": "BootStrapperInhibitAll=Enable\n"
-        }
-      ]
+      "launchArguments": [
+        "-allosarches",
+        "-cef-force-32bit",
+        "-noverifyfiles"
+      ],
+      "configFiles": []
     }
   ]
 }

@@ -4,6 +4,17 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] — 2026-07-12
+
+### Fixed
+- Steam failed with "Failed to load steamui.dll": the installer pre-wrote
+  `steam.cfg` (`BootStrapperInhibitAll=Enable`), which blocked Steam's first
+  bootstrap self-update. The config file is no longer written; Steam now
+  completes its initial update normally.
+- Tiny fonts in Windows programs on Retina displays: Retina mode now pairs
+  `RetinaMode=y` with 2x Windows DPI (`LogPixels=192`), so UI renders at the
+  correct size. Disabling Retina restores 96 DPI.
+
 ## [0.1.0] — 2026-07-12
 
 ### Added
