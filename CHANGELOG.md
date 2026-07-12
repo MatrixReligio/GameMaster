@@ -29,6 +29,23 @@ All notable changes to GameMaster are documented here. The format is based on
   CrossOver-derived Sikarugir build) and **Rosetta AVX advertising** (Source 2
   ships AVX-optimized code paths). Both applied by catalog data
   (`runTuning`), not hard-coded.
+- **MetalFX upscaling now works on both translation layers**: on DXMT runtimes
+  the toggle enables DXMT's spatial swapchain upscaler
+  (`DXMT_METALFX_SPATIAL_SWAPCHAIN`, renders internally at lower resolution
+  and upscales — a large FPS gain); on GPTK runtimes it activates D3DMetal's
+  DLSS-to-MetalFX shims, which previously shipped in the app but were never
+  wired up (nvngx preparation now runs on launch).
+- Every expert bottle setting now has an ⓘ explanation popover (Retina,
+  DirectX translation, MetalFX, sync mode, Metal HUD, AVX, DXR), and the sync
+  picker is reordered fastest-first (MSync → ESync → None).
+
+### Added
+- **Language picker** in Settings → General: follow the system (default) or
+  force English / 简体中文 / 繁體中文 / 日本語 / 한국어, with one-click relaunch.
+
+### Removed
+- The `d3dMetal` DirectX-backend value (identical in behavior to Automatic and
+  never exposed in the UI). Bottles that saved it fall back to Automatic.
 
 ## [0.2.1] — 2026-07-12
 

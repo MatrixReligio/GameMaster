@@ -45,8 +45,16 @@ public enum EnvironmentComposer {
         if let dxr = bottle.settings.dxrOverride {
             env["D3DM_SUPPORT_DXR"] = dxr ? "1" : "0"
         }
+        // MetalFX upscaling goes through whichever translation layer the
+        // runtime actually uses: DXMT's spatial swapchain upscaler renders
+        // internally at a lower resolution and upscales the output (big FPS
+        // win); D3DMetal has its own DLSS-to-MetalFX switch.
         if bottle.settings.metalFX {
-            env["D3DM_ENABLE_METALFX"] = "1"
+            if case .installed = runtime.dxmt {
+                env["DXMT_METALFX_SPATIAL_SWAPCHAIN"] = "1"
+            } else {
+                env["D3DM_ENABLE_METALFX"] = "1"
+            }
         }
 
         env.merge(bottle.settings.extraEnvironment) { _, user in user }

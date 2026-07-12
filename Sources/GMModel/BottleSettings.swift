@@ -1,10 +1,12 @@
 import Foundation
 
 /// DirectX translation backend selection for a bottle.
-/// `.auto` uses D3DMetal whenever the bottle's runtime has it installed.
+/// `.auto` uses whatever D3D-to-Metal layer the bottle's runtime carries
+/// (D3DMetal on GPTK runtimes, DXMT builtins otherwise); `.off` disables
+/// D3DMetal's DLL overrides. Bottles saved with the removed `d3dMetal` case
+/// decode back to `.auto` via the forward-compatible fallback.
 public enum DXBackend: String, Codable, Sendable, CaseIterable {
     case auto
-    case d3dMetal
     case off
 }
 

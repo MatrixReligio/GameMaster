@@ -85,6 +85,34 @@
         }
       }
     },
+    "Advertises AVX/AVX2 CPU support so games pick their optimized code paths (Rosetta translates AVX on macOS 15+). Disable if a game probes AVX-512 and crashes at launch.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向游戏声明 CPU 支持 AVX/AVX2，使其启用优化代码路径（macOS 15+ 的 Rosetta 可翻译 AVX）。若游戏探测 AVX-512 导致启动崩溃，请关闭。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向遊戲聲明 CPU 支援 AVX/AVX2，使其啟用最佳化程式碼路徑（macOS 15+ 的 Rosetta 可轉譯 AVX）。若遊戲偵測 AVX-512 導致啟動當機，請關閉。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU が AVX/AVX2 をサポートしているとゲームに通知し、最適化されたコードパスを使わせます（macOS 15 以降の Rosetta が AVX を変換）。AVX-512 を検出して起動時にクラッシュするゲームではオフにしてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU가 AVX/AVX2를 지원한다고 게임에 알려 최적화된 코드 경로를 사용하게 합니다(macOS 15+의 Rosetta가 AVX를 변환). 게임이 AVX-512를 감지해 실행 시 충돌하면 끄세요."
+          }
+        }
+      }
+    },
     "Automatic": {
       "localizations": {
         "ja": {
@@ -137,6 +165,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "自動（建議）"
+          }
+        }
+      }
+    },
+    "Automatic routes Direct3D through the runtime's Metal layer (D3DMetal on GPTK runtimes, DXMT otherwise). Off falls back to Wine's OpenGL path — only useful for troubleshooting.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“自动”将 Direct3D 通过运行时自带的 Metal 层转换（GPTK 运行时用 D3DMetal，其余用 DXMT）。“关闭”回退到 Wine 的 OpenGL 路径——仅用于排查问题。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「自動」將 Direct3D 透過執行階段內建的 Metal 層轉換（GPTK 執行階段用 D3DMetal，其餘用 DXMT）。「關閉」回退到 Wine 的 OpenGL 路徑——僅用於排查問題。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「自動」はランタイムの Metal レイヤー（GPTK ランタイムでは D3DMetal、それ以外は DXMT）で Direct3D を変換します。「オフ」は Wine の OpenGL パスにフォールバックします（トラブルシューティング用）。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "'자동'은 런타임의 Metal 레이어(GPTK 런타임은 D3DMetal, 그 외는 DXMT)로 Direct3D를 변환합니다. '끔'은 Wine의 OpenGL 경로로 대체됩니다(문제 해결용)."
           }
         }
       }
@@ -841,6 +897,34 @@
         }
       }
     },
+    "Forces DirectX Raytracing on or off for D3DMetal (GPTK runtimes only). Automatic follows Apple's default: off on M1/M2, on for M3 and newer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强制开启或关闭 D3DMetal 的 DirectX 光线追踪（仅 GPTK 运行时有效）。“自动”遵循 Apple 默认值：M1/M2 关闭，M3 及更新芯片开启。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "強制開啟或關閉 D3DMetal 的 DirectX 光線追蹤（僅 GPTK 執行階段有效）。「自動」遵循 Apple 預設值：M1/M2 關閉，M3 及更新晶片開啟。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D3DMetal の DirectX レイトレーシングを強制的にオン/オフします（GPTK ランタイムのみ）。「自動」は Apple のデフォルトに従います：M1/M2 はオフ、M3 以降はオン。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D3DMetal의 DirectX 레이 트레이싱을 강제로 켜거나 끕니다(GPTK 런타임 전용). '자동'은 Apple 기본값을 따릅니다: M1/M2는 끔, M3 이상은 켬."
+          }
+        }
+      }
+    },
     "GameMaster downloads an open-source Windows compatibility runtime (about 240 MB) with Apple's DirectX translation support built in.": {
       "localizations": {
         "ja": {
@@ -869,6 +953,62 @@
         }
       }
     },
+    "GameMaster needs to relaunch for the language change to take effect.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语言更改需要重新启动 GameMaster 后生效。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語言變更需要重新啟動 GameMaster 後生效。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "言語の変更を適用するには GameMaster の再起動が必要です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "언어 변경을 적용하려면 GameMaster를 다시 시작해야 합니다."
+          }
+        }
+      }
+    },
+    "General": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一般"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一般"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일반"
+          }
+        }
+      }
+    },
     "Graphics": {
       "localizations": {
         "ja": {
@@ -893,6 +1033,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "圖形"
+          }
+        }
+      }
+    },
+    "How Wine emulates Windows thread synchronization. MSync (Mach ports) is fastest on runtimes that support it; ESync works everywhere; None is slowest and only for debugging.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wine 模拟 Windows 线程同步的方式。MSync（Mach 端口）在支持它的运行时上最快；ESync 通用；“无”最慢，仅用于调试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wine 模擬 Windows 執行緒同步的方式。MSync（Mach 埠）在支援它的執行階段上最快；ESync 通用；「無」最慢，僅用於除錯。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wine が Windows のスレッド同期をエミュレートする方式です。MSync（Mach ポート）は対応ランタイムで最速、ESync はどこでも動作、「なし」は最も遅くデバッグ用です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wine이 Windows 스레드 동기화를 에뮬레이션하는 방식입니다. MSync(Mach 포트)는 지원 런타임에서 가장 빠르고, ESync는 어디서나 작동하며, '없음'은 가장 느리고 디버깅용입니다."
           }
         }
       }
@@ -1093,6 +1261,34 @@
         }
       }
     },
+    "Language": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语言"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語言"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "言語"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "언어"
+          }
+        }
+      }
+    },
     "Launch a program and its output will appear here.": {
       "localizations": {
         "ja": {
@@ -1149,30 +1345,30 @@
         }
       }
     },
-    "MSync (faster, experimental)": {
+    "MSync (fastest)": {
       "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MSync（高速・実験的）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MSync(더 빠름, 실험적)"
-          }
-        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "MSync（更快，实验性）"
+            "value": "MSync（最快）"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "MSync（更快，實驗性）"
+            "value": "MSync（最快）"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MSync（最速）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MSync(가장 빠름)"
           }
         }
       }
@@ -1205,30 +1401,30 @@
         }
       }
     },
-    "MetalFX upscaling (DLSS games)": {
+    "MetalFX upscaling": {
       "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MetalFX アップスケーリング（DLSS ゲーム）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MetalFX 업스케일링(DLSS 게임)"
-          }
-        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "MetalFX 超分辨率（DLSS 游戏）"
+            "value": "MetalFX 升频"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "MetalFX 超解析度（DLSS 遊戲）"
+            "value": "MetalFX 升頻"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MetalFX アップスケーリング"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MetalFX 업스케일링"
           }
         }
       }
@@ -1625,6 +1821,34 @@
         }
       }
     },
+    "Relaunch": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新啟動"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再起動"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다시 시작"
+          }
+        }
+      }
+    },
     "Remove from Library": {
       "localizations": {
         "ja": {
@@ -1653,30 +1877,58 @@
         }
       }
     },
-    "Render at full pixel density on HiDPI displays": {
+    "Renders at full HiDPI pixel density with matching Windows DPI. Sharper picture, but games draw up to 4× the pixels — turn it off for extra FPS.": {
       "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HiDPI ディスプレイでフル解像度でレンダリング"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HiDPI 디스플레이에서 전체 픽셀 밀도로 렌더링"
-          }
-        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 HiDPI 显示器上以完整像素密度渲染"
+            "value": "以完整 HiDPI 像素密度渲染并匹配 Windows DPI。画面更清晰，但游戏渲染的像素最多可达 4 倍——关闭可换取更高帧率。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 HiDPI 顯示器上以完整像素密度渲染"
+            "value": "以完整 HiDPI 像素密度算繪並匹配 Windows DPI。畫面更清晰，但遊戲算繪的像素最多可達 4 倍——關閉可換取更高幀率。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HiDPI のフル解像度でレンダリングし、Windows の DPI を合わせます。画面は鮮明になりますが、描画ピクセルは最大 4 倍になります。FPS を稼ぎたい場合はオフにしてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HiDPI 전체 픽셀 밀도로 렌더링하고 Windows DPI를 일치시킵니다. 화면은 더 선명해지지만 게임이 그리는 픽셀이 최대 4배가 됩니다. FPS를 높이려면 끄세요."
+          }
+        }
+      }
+    },
+    "Renders internally at a lower resolution and upscales the output with MetalFX. Big FPS gain for a small sharpness cost. Uses DXMT's spatial upscaler, or converts DLSS calls on GPTK runtimes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以较低的内部分辨率渲染，再用 MetalFX 放大输出。大幅提升帧率，仅轻微损失锐度。DXMT 运行时使用其空间放大器，GPTK 运行时则转换 DLSS 调用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以較低的內部解析度算繪，再用 MetalFX 放大輸出。大幅提升幀率，僅輕微損失銳利度。DXMT 執行階段使用其空間放大器，GPTK 執行階段則轉換 DLSS 呼叫。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内部を低解像度でレンダリングし、MetalFX で出力をアップスケールします。わずかな鮮明さと引き換えに FPS が大きく向上します。DXMT ランタイムでは空間アップスケーラーを、GPTK では DLSS 呼び出しの変換を使用します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내부적으로 낮은 해상도로 렌더링한 뒤 MetalFX로 출력을 업스케일합니다. 약간의 선명도 손실로 FPS가 크게 향상됩니다. DXMT 런타임은 공간 업스케일러를, GPTK는 DLSS 호출 변환을 사용합니다."
           }
         }
       }
@@ -2045,6 +2297,34 @@
         }
       }
     },
+    "Shows Apple's Metal performance HUD (FPS, GPU time, resolution) over every window in this bottle.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此游戏瓶的每个窗口上显示 Apple 的 Metal 性能 HUD（帧率、GPU 耗时、分辨率）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此遊戲瓶的每個視窗上顯示 Apple 的 Metal 效能 HUD（幀率、GPU 耗時、解析度）。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このボトルのすべてのウインドウに Apple の Metal パフォーマンス HUD（FPS、GPU 時間、解像度）を表示します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 보틀의 모든 창 위에 Apple의 Metal 성능 HUD(FPS, GPU 시간, 해상도)를 표시합니다."
+          }
+        }
+      }
+    },
     "Skip for Now": {
       "localizations": {
         "ja": {
@@ -2153,6 +2433,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "同步方式"
+          }
+        }
+      }
+    },
+    "System Default": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随系统"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟隨系統"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システムのデフォルト"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 기본값"
           }
         }
       }

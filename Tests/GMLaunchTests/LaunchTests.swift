@@ -324,6 +324,64 @@ struct DXMTPrefixSupportTests {
     }
 }
 
+@Suite("MetalFX preparation on launch")
+struct MetalFXLaunchTests {
+    /// GPTK ships DLSS-to-MetalFX shims as nvngx-on-metalfx.{so,dll}; enabling
+    /// the bottle's MetalFX toggle must activate them (rename + copy into the
+    /// prefix) before the game starts.
+    @Test func launchWithMetalFXPreparesGPTKShims() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let lib = env.root.appendingPathComponent("runtimes/rt/gptk/wine/lib")
+        try FileManager.default.createDirectory(
+            at: lib.appendingPathComponent("wine/x86_64-unix"), withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: lib.appendingPathComponent("wine/x86_64-windows"), withIntermediateDirectories: true
+        )
+        try Data("so".utf8).write(to: lib.appendingPathComponent("wine/x86_64-unix/nvngx-on-metalfx.so"))
+        try Data("dll".utf8).write(to: lib.appendingPathComponent("wine/x86_64-windows/nvngx-on-metalfx.dll"))
+        try Data("nvapi".utf8).write(to: lib.appendingPathComponent("wine/x86_64-windows/nvapi64.dll"))
+
+        var bottle = env.bottle
+        bottle.settings.metalFX = true
+        let launcher = WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: FakeRunner(),
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+        _ = try await launcher.launch(Program(name: "G", windowsPath: "C:\\g.exe"), in: bottle)
+
+        #expect(FileManager.default.fileExists(
+            atPath: lib.appendingPathComponent("wine/x86_64-unix/nvngx.so").path
+        ))
+        let prefix = await env.bottleStore.prefixDirectory(of: bottle)
+        let system32 = prefix.appendingPathComponent("drive_c/windows/system32")
+        #expect(FileManager.default.fileExists(atPath: system32.appendingPathComponent("nvngx.dll").path))
+        #expect(FileManager.default.fileExists(atPath: system32.appendingPathComponent("nvapi64.dll").path))
+    }
+
+    @Test func launchWithoutMetalFXLeavesShimsAlone() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let unixDir = env.root.appendingPathComponent("runtimes/rt/gptk/wine/lib/wine/x86_64-unix")
+        try FileManager.default.createDirectory(at: unixDir, withIntermediateDirectories: true)
+        try Data("so".utf8).write(to: unixDir.appendingPathComponent("nvngx-on-metalfx.so"))
+
+        let launcher = WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: FakeRunner(),
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+        _ = try await launcher.launch(Program(name: "G", windowsPath: "C:\\g.exe"), in: env.bottle)
+        #expect(!FileManager.default.fileExists(atPath: unixDir.appendingPathComponent("nvngx.so").path))
+    }
+}
+
 @Suite("Launch argument sanitizing")
 struct LaunchArgumentSanitizingTests {
     @Test func stripsDeadCefForce32bitFromLegacyPrograms() async throws {

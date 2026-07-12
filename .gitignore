@@ -43,3 +43,6 @@ dist/
 coverage/
 
 .superpowers/
+
+# Local marketing screenshots (large PNGs, kept out of the repo)
+docs/marketing/

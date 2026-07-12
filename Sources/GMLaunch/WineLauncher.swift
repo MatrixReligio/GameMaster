@@ -195,6 +195,12 @@ public struct WineLauncher: Sendable {
         let environment = EnvironmentComposer.environment(for: bottle, prefix: prefix, runtime: descriptor)
         let wineBinary = await runtimeStore.wineBinary(for: descriptor)
         Self.ensureDXMTPrefixSupport(runtime: descriptor, wineBinary: wineBinary, prefix: prefix)
+        // D3DMetal's DLSS-to-MetalFX shims ship disabled (nvngx-on-metalfx.*);
+        // the toggle activates them for this runtime + prefix. DXMT runtimes
+        // handle MetalFX purely via environment, no file preparation.
+        if bottle.settings.metalFX, case .installed = descriptor.gptk {
+            try? await MetalFXEnabler(store: runtimeStore).prepare(runtimeID: runtimeID, prefix: prefix)
+        }
         return Context(
             wineBinary: wineBinary,
             prefix: prefix,

@@ -2,6 +2,29 @@ import GMApps
 import GMModel
 import SwiftUI
 
+/// A small ⓘ button that reveals a plain-language explanation of an expert
+/// setting in a popover, so the sheet stays scannable.
+struct InfoButton: View {
+    let text: String
+    @State private var showing = false
+
+    var body: some View {
+        Button {
+            showing.toggle()
+        } label: {
+            Image(systemName: "info.circle")
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showing, arrowEdge: .trailing) {
+            Text(text)
+                .font(.callout)
+                .padding(12)
+                .frame(width: 300, alignment: .leading)
+        }
+    }
+}
+
 /// Per-bottle settings: sensible defaults up front, expert knobs tucked into
 /// a disclosure group (progressive disclosure, HIG-style).
 struct BottleSettingsSheet: View {
@@ -23,34 +46,54 @@ struct BottleSettingsSheet: View {
         VStack(spacing: 0) {
             Form {
                 Section(String(localized: "Display")) {
-                    Toggle(String(localized: "Retina resolution"), isOn: $draft.settings.retinaMode)
-                        .help(String(localized: "Render at full pixel density on HiDPI displays"))
+                    HStack {
+                        Toggle(String(localized: "Retina resolution"), isOn: $draft.settings.retinaMode)
+                        InfoButton(text: SettingsHelp.retina)
+                    }
                 }
 
                 Section(String(localized: "Graphics")) {
-                    Picker(String(localized: "DirectX translation"), selection: $draft.settings.dxBackend) {
-                        Text(String(localized: "Automatic (recommended)")).tag(DXBackend.auto)
-                        Text(String(localized: "Off")).tag(DXBackend.off)
+                    HStack {
+                        Picker(String(localized: "DirectX translation"), selection: $draft.settings.dxBackend) {
+                            Text(String(localized: "Automatic (recommended)")).tag(DXBackend.auto)
+                            Text(String(localized: "Off")).tag(DXBackend.off)
+                        }
+                        InfoButton(text: SettingsHelp.directX)
                     }
-                    Toggle(String(localized: "MetalFX upscaling (DLSS games)"), isOn: $draft.settings.metalFX)
+                    HStack {
+                        Toggle(String(localized: "MetalFX upscaling"), isOn: $draft.settings.metalFX)
+                        InfoButton(text: SettingsHelp.metalFX)
+                    }
                 }
 
                 Section(String(localized: "Performance")) {
-                    Picker(String(localized: "Synchronization"), selection: $draft.settings.sync) {
-                        Text(String(localized: "ESync (default)")).tag(SyncMode.esync)
-                        Text(String(localized: "MSync (faster, experimental)")).tag(SyncMode.msync)
-                        Text(String(localized: "None")).tag(SyncMode.none)
+                    HStack {
+                        Picker(String(localized: "Synchronization"), selection: $draft.settings.sync) {
+                            Text(String(localized: "MSync (fastest)")).tag(SyncMode.msync)
+                            Text(String(localized: "ESync (default)")).tag(SyncMode.esync)
+                            Text(String(localized: "None")).tag(SyncMode.none)
+                        }
+                        InfoButton(text: SettingsHelp.sync)
                     }
                 }
 
                 Section {
                     DisclosureGroup(String(localized: "Advanced")) {
-                        Toggle(String(localized: "Metal performance HUD"), isOn: $draft.settings.metalHUD)
-                        Toggle(String(localized: "Advertise AVX support"), isOn: $draft.settings.advertiseAVX)
-                        Picker(String(localized: "Ray tracing (DXR)"), selection: dxrBinding) {
-                            Text(String(localized: "Automatic")).tag(0)
-                            Text(String(localized: "On")).tag(1)
-                            Text(String(localized: "Off")).tag(2)
+                        HStack {
+                            Toggle(String(localized: "Metal performance HUD"), isOn: $draft.settings.metalHUD)
+                            InfoButton(text: SettingsHelp.metalHUD)
+                        }
+                        HStack {
+                            Toggle(String(localized: "Advertise AVX support"), isOn: $draft.settings.advertiseAVX)
+                            InfoButton(text: SettingsHelp.avx)
+                        }
+                        HStack {
+                            Picker(String(localized: "Ray tracing (DXR)"), selection: dxrBinding) {
+                                Text(String(localized: "Automatic")).tag(0)
+                                Text(String(localized: "On")).tag(1)
+                                Text(String(localized: "Off")).tag(2)
+                            }
+                            InfoButton(text: SettingsHelp.dxr)
                         }
                         VStack(alignment: .leading, spacing: 4) {
                             Text(String(localized: "Environment variables (one per line, KEY=value)"))
@@ -111,3 +154,40 @@ struct BottleSettingsSheet: View {
         }
     }
 }
+
+// swiftlint:disable line_length
+/// Explanations shown by the ⓘ buttons. Long localized literals live here
+/// so the view body stays readable; the strings are the localization keys
+/// and must not be wrapped.
+private enum SettingsHelp {
+    static let retina =
+        String(
+            localized: "Renders at full HiDPI pixel density with matching Windows DPI. Sharper picture, but games draw up to 4× the pixels — turn it off for extra FPS."
+        )
+    static let directX =
+        String(
+            localized: "Automatic routes Direct3D through the runtime's Metal layer (D3DMetal on GPTK runtimes, DXMT otherwise). Off falls back to Wine's OpenGL path — only useful for troubleshooting."
+        )
+    static let metalFX =
+        String(
+            localized: "Renders internally at a lower resolution and upscales the output with MetalFX. Big FPS gain for a small sharpness cost. Uses DXMT's spatial upscaler, or converts DLSS calls on GPTK runtimes."
+        )
+    static let sync =
+        String(
+            localized: "How Wine emulates Windows thread synchronization. MSync (Mach ports) is fastest on runtimes that support it; ESync works everywhere; None is slowest and only for debugging."
+        )
+    static let metalHUD =
+        String(
+            localized: "Shows Apple's Metal performance HUD (FPS, GPU time, resolution) over every window in this bottle."
+        )
+    static let avx =
+        String(
+            localized: "Advertises AVX/AVX2 CPU support so games pick their optimized code paths (Rosetta translates AVX on macOS 15+). Disable if a game probes AVX-512 and crashes at launch."
+        )
+    static let dxr =
+        String(
+            localized: "Forces DirectX Raytracing on or off for D3DMetal (GPTK runtimes only). Automatic follows Apple's default: off on M1/M2, on for M3 and newer."
+        )
+}
+
+// swiftlint:enable line_length

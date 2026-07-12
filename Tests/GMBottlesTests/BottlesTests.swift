@@ -128,6 +128,36 @@ struct EnvironmentComposerTests {
         #expect(env["WINEDLLOVERRIDES"] == nil)
     }
 
+    /// MetalFX upscaling maps to the layer the runtime actually uses: DXMT's
+    /// spatial swapchain upscaler on DXMT runtimes, D3DMetal's env on GPTK.
+    @Test func metalFXMapsToActiveTranslationLayer() {
+        let dxmtRuntime = RuntimeDescriptor(
+            id: "sikarugir-10.0-6-dxmt-0.80",
+            displayVersion: "Sikarugir 10.0-6 + DXMT 0.80",
+            wineBinaryRelativePath: "wswine.bundle/bin/wine",
+            gptk: .none,
+            dxmt: .installed(version: "0.80")
+        )
+        let dxmtEnv = EnvironmentComposer.environment(
+            for: bottle { $0.metalFX = true },
+            prefix: prefix,
+            runtime: dxmtRuntime
+        )
+        #expect(dxmtEnv["DXMT_METALFX_SPATIAL_SWAPCHAIN"] == "1")
+        #expect(dxmtEnv["D3DM_ENABLE_METALFX"] == nil)
+
+        let gptkEnv = EnvironmentComposer.environment(
+            for: bottle { $0.metalFX = true },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(gptkEnv["D3DM_ENABLE_METALFX"] == "1")
+        #expect(gptkEnv["DXMT_METALFX_SPATIAL_SWAPCHAIN"] == nil)
+
+        let off = EnvironmentComposer.environment(for: bottle(), prefix: prefix, runtime: dxmtRuntime)
+        #expect(off["DXMT_METALFX_SPATIAL_SWAPCHAIN"] == nil)
+    }
+
     @Test func syncModes() {
         let msync = EnvironmentComposer.environment(
             for: bottle { $0.sync = .msync },
