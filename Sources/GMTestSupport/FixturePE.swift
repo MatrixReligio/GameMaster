@@ -83,8 +83,8 @@ public enum FixturePE {
         // Now fill real contents with known offsets.
         var filled: [String: Data] = [:]
         filled["root"] = directory(entries: [
-            (3, offset(of: "typeIcon"), true), // RT_ICON
-            (14, offset(of: "typeGroup"), true) // RT_GROUP_ICON
+            DirEntrySpec(id: 3, offset: offset(of: "typeIcon"), isDir: true), // RT_ICON
+            DirEntrySpec(id: 14, offset: offset(of: "typeGroup"), isDir: true) // RT_GROUP_ICON
         ])
         filled["typeIcon"] = directory(entries: [DirEntrySpec(id: 7, offset: offset(of: "idIcon"), isDir: true)])
         filled["typeGroup"] = directory(entries: [DirEntrySpec(id: 1, offset: offset(of: "idGroup"), isDir: true)])
