@@ -19,6 +19,8 @@ public struct ProgramLibrary: Sendable {
             windowsPath: WindowsPath.toWindows(exe, prefix: prefix),
             pinned: true
         )
+        let bottleDirectory = await bottleStore.directory(of: bottle)
+        ProgramIconStore.extractAndStore(exe: exe, programID: program.id, bottleDirectory: bottleDirectory)
         var updated = bottle
         updated.programs.append(program)
         try await bottleStore.save(updated)
@@ -26,6 +28,8 @@ public struct ProgramLibrary: Sendable {
     }
 
     public func removeProgram(id: UUID, from bottle: Bottle) async throws {
+        let bottleDirectory = await bottleStore.directory(of: bottle)
+        ProgramIconStore.removeIcon(programID: id, bottleDirectory: bottleDirectory)
         var updated = bottle
         updated.programs.removeAll { $0.id == id }
         try await bottleStore.save(updated)

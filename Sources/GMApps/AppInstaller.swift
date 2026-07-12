@@ -87,6 +87,12 @@ public struct AppInstaller: Sendable {
             arguments: entry.launchArguments,
             pinned: true
         )
+        let bottleDirectory = await bottleStore.directory(of: bottle)
+        ProgramIconStore.extractAndStore(
+            exe: installedExe,
+            programID: program.id,
+            bottleDirectory: bottleDirectory
+        )
         var updated = bottle
         updated.programs.removeAll { $0.windowsPath == entry.installedWindowsPath }
         updated.programs.append(program)

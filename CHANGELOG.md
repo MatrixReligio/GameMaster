@@ -4,6 +4,15 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] — 2026-07-12
+
+### Added
+- Program cards now show the real icon extracted from the Windows executable
+  (native PE resource parsing — works for Steam and any dropped .exe). Icons
+  are extracted lazily for programs added before this release.
+- Fallback cards use a per-program color gradient monogram instead of the
+  plain letter tile.
+
 ## [0.1.1] — 2026-07-12
 
 ### Fixed

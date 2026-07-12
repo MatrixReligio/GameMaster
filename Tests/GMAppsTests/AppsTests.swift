@@ -222,3 +222,66 @@ struct AppInstallerFailureTests {
         #expect(saved.programs.isEmpty)
     }
 }
+
+@Suite("Program icons")
+struct ProgramIconTests {
+    @Test func installerExtractsIconIntoBottle() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let fixture = env.root.appendingPathComponent("installer.exe")
+        try Data("MZ".utf8).write(to: fixture)
+        let steam = try #require(InstallerCatalog.bundled().entries.first { $0.id == "steam" })
+
+        // Installer "produces" a real PE with an icon at the catalog path.
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let steamExe = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/steam.exe")
+        try FileManager.default.createDirectory(
+            at: steamExe.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FixturePE.build().write(to: steamExe)
+
+        let installer = AppInstaller(
+            downloader: FakeDownloader(fixture: fixture),
+            launcher: env.launcher(),
+            bottleStore: env.bottleStore
+        )
+        let program = try await installer.install(steam, into: env.bottle, progress: nil)
+
+        let bottleDir = await env.bottleStore.directory(of: env.bottle)
+        let icon = ProgramIconStore.iconURL(programID: program.id, bottleDirectory: bottleDir)
+        #expect(FileManager.default.fileExists(atPath: icon.path))
+    }
+
+    @Test func libraryExtractsIconAndDeleteRemovesIt() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let exe = env.root.appendingPathComponent("game.exe")
+        try FixturePE.build().write(to: exe)
+
+        let library = ProgramLibrary(bottleStore: env.bottleStore)
+        let program = try await library.addProgram(exe: exe, name: nil, in: env.bottle)
+        let bottleDir = await env.bottleStore.directory(of: env.bottle)
+        let icon = ProgramIconStore.iconURL(programID: program.id, bottleDirectory: bottleDir)
+        #expect(FileManager.default.fileExists(atPath: icon.path))
+
+        let reloaded = try #require(await env.bottleStore.list().first)
+        try await library.removeProgram(id: program.id, from: reloaded)
+        #expect(!FileManager.default.fileExists(atPath: icon.path))
+    }
+
+    @Test func exeWithoutIconProducesNoFileButStillRegisters() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let exe = env.root.appendingPathComponent("plain.exe")
+        try Data("MZ but not a real PE".utf8).write(to: exe)
+
+        let library = ProgramLibrary(bottleStore: env.bottleStore)
+        let program = try await library.addProgram(exe: exe, name: nil, in: env.bottle)
+        let bottleDir = await env.bottleStore.directory(of: env.bottle)
+        let icon = ProgramIconStore.iconURL(programID: program.id, bottleDirectory: bottleDir)
+        #expect(!FileManager.default.fileExists(atPath: icon.path))
+        let saved = try #require(await env.bottleStore.list().first)
+        #expect(saved.programs.contains { $0.id == program.id })
+    }
+}

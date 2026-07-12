@@ -183,26 +183,59 @@ struct ProgramCard: View {
     let program: Program
     let bottle: Bottle
 
+    @State private var icon: NSImage?
+
     private var isRunning: Bool {
         appState.runningIDs.contains(program.id)
+    }
+
+    /// Stable, name-derived hue so each fallback card gets its own color.
+    private var fallbackGradient: LinearGradient {
+        var hash: UInt32 = 5381
+        for byte in program.name.utf8 {
+            hash = hash &* 33 &+ UInt32(byte)
+        }
+        let hue = Double(hash % 360) / 360.0
+        return LinearGradient(
+            colors: [
+                Color(hue: hue, saturation: 0.55, brightness: 0.60),
+                Color(hue: (hue + 0.08).truncatingRemainder(dividingBy: 1), saturation: 0.65, brightness: 0.38)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     var body: some View {
         VStack(spacing: 10) {
             ZStack(alignment: .topTrailing) {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(.tint.opacity(0.15))
+                    .fill(icon == nil ? AnyShapeStyle(fallbackGradient) : AnyShapeStyle(.quaternary.opacity(0.4)))
                     .frame(height: 90)
                     .overlay {
-                        Text(program.name.prefix(1).uppercased())
-                            .font(.system(size: 40, weight: .bold, design: .rounded))
-                            .foregroundStyle(.tint)
+                        if let icon {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .interpolation(.high)
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 64, height: 64)
+                                .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
+                        } else {
+                            Text(program.name.prefix(1).uppercased())
+                                .font(.system(size: 40, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.92))
+                        }
                     }
                 if isRunning {
                     Circle()
                         .fill(.green)
                         .frame(width: 10, height: 10)
                         .padding(8)
+                }
+            }
+            .task(id: program.id) {
+                if let url = await appState.iconURL(for: program, in: bottle) {
+                    icon = NSImage(contentsOf: url)
                 }
             }
             Text(program.name)

@@ -243,6 +243,23 @@ public final class AppState {
         }
     }
 
+    /// Icon for a program card. Extracts lazily for programs registered
+    /// before icon support (or after Steam's bootstrap replaced the exe).
+    public func iconURL(for program: Program, in bottle: Bottle) async -> URL? {
+        let bottleDirectory = await bottleStore.directory(of: bottle)
+        let url = ProgramIconStore.iconURL(programID: program.id, bottleDirectory: bottleDirectory)
+        if FileManager.default.fileExists(atPath: url.path) {
+            return url
+        }
+        let prefix = await bottleStore.prefixDirectory(of: bottle)
+        let exe = WindowsPath.toUnix(program.windowsPath, prefix: prefix)
+        return ProgramIconStore.extractAndStore(
+            exe: exe,
+            programID: program.id,
+            bottleDirectory: bottleDirectory
+        )
+    }
+
     public func launch(program: Program, in bottle: Bottle) async {
         runningIDs.insert(program.id)
         do {
