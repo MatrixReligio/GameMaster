@@ -242,10 +242,10 @@ struct AppInstallerTests {
         try FileManager.default.createDirectory(at: steamDir, withIntermediateDirectories: true)
         try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
 
-        let entry = InstallerCatalog.Entry(
+        let entry = try InstallerCatalog.Entry(
             id: "steam",
             name: "Steam",
-            downloadURL: try #require(URL(string: "https://example/SteamSetup.exe")),
+            downloadURL: #require(URL(string: "https://example/SteamSetup.exe")),
             installerFileName: "SteamSetup.exe",
             silentArguments: ["/S"],
             installedWindowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
@@ -412,8 +412,13 @@ struct SteamWebHelperWrapperTests {
         let prefix: URL
         let cef: URL
         let wrapper: URL
-        var helper: URL { cef.appendingPathComponent("steamwebhelper.exe") }
-        var real: URL { cef.appendingPathComponent("steamwebhelper_real.exe") }
+        var helper: URL {
+            cef.appendingPathComponent("steamwebhelper.exe")
+        }
+
+        var real: URL {
+            cef.appendingPathComponent("steamwebhelper_real.exe")
+        }
     }
 
     /// A prefix with the CEF directory created, plus a small wrapper fixture.
@@ -486,7 +491,7 @@ struct SteamWebHelperWrapperTests {
         }
     }
 
-    @Test func bundledWrapperResourceIsPackaged() throws {
+    @Test func bundledWrapperResourceIsPackaged() {
         // The prebuilt PE must ship in the app bundle, or the black-UI fix silently
         // no-ops in production.
         #expect(SteamWebHelperWrapper.bundledResource(named: "steamwebhelper_wrapper") != nil)
@@ -577,7 +582,7 @@ struct SteamServiceStubTests {
         }
     }
 
-    @Test func bundledStubResourceIsPackaged() throws {
+    @Test func bundledStubResourceIsPackaged() {
         #expect(SteamServiceStub.bundledResource(named: "steamservice_stub") != nil)
     }
 }

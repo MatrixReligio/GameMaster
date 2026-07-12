@@ -170,9 +170,9 @@ struct AppStateTests {
         let (gptkFixture, gptkEntry) = try await makeRuntimeFixtureEntry(in: dir)
         let (wineFixture, wineEntry) = try await makeWineStagingFixtureEntry(in: dir)
         let downloader = MultiDownloader(byLastComponent: [
-            "runtime.tar.gz": gptkFixture,    // GPTK (default runtime)
-            "wine.tar.gz": wineFixture,       // Steam's run runtime
-            "SteamSetup.exe": gptkFixture     // content irrelevant; FakeRunner no-ops the install
+            "runtime.tar.gz": gptkFixture, // GPTK (default runtime)
+            "wine.tar.gz": wineFixture, // Steam's run runtime
+            "SteamSetup.exe": gptkFixture // content irrelevant; FakeRunner no-ops the install
         ])
         let manifest = RuntimeManifest(defaultRuntimeID: gptkEntry.id, entries: [gptkEntry, wineEntry])
         let state = AppState(

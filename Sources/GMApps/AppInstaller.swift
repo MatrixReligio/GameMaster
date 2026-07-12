@@ -180,7 +180,9 @@ public struct AppInstaller: Sendable {
         guard let spec = entry.bootstrap else { return }
         let readyFile = WindowsPath.toUnix(spec.readyWindowsPath, prefix: prefix)
         // Already bootstrapped (e.g. re-install over an existing prefix).
-        if Self.fileSize(of: readyFile) >= spec.readyMinBytes { return }
+        if Self.fileSize(of: readyFile) >= spec.readyMinBytes {
+            return
+        }
 
         // wait:false — `wine start /unix` returns while Steam keeps running.
         _ = try? await launcher.run(exe: exe, arguments: entry.launchArguments, in: bottle, wait: false)

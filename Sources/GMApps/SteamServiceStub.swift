@@ -32,7 +32,9 @@ public enum SteamServiceStub {
             let target = WindowsPath.toUnix(windowsPath, prefix: prefix)
             guard fm.fileExists(atPath: target.path) else { continue }
             // Already the stub (identical size) — leave it.
-            if fileSize(of: target) == stubSize { continue }
+            if fileSize(of: target) == stubSize {
+                continue
+            }
 
             // Back up the genuine service, then drop the stub in its place.
             let backup = target.appendingPathExtension("real")
