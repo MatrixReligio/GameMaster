@@ -82,8 +82,23 @@ public struct BottleSettings: Codable, Equatable, Sendable {
         dxrOverride = try container.decodeIfPresent(Bool.self, forKey: .dxrOverride)
         metalFX = try container.decodeIfPresent(Bool.self, forKey: .metalFX) ?? false
         // Absent on bottles written before these knobs existed → nil = runtime default.
-        metalFXUpscaleFactor = try container.decodeIfPresent(Double.self, forKey: .metalFXUpscaleFactor)
+        // A hand-edited bottle.json could carry a non-finite or absurd factor;
+        // sanitize it here so no persisted value can later trap `Int(factor)`
+        // when it is folded into DXMT_CONFIG.
+        metalFXUpscaleFactor = try Self.sanitizedUpscaleFactor(
+            container.decodeIfPresent(Double.self, forKey: .metalFXUpscaleFactor)
+        )
         maxFrameRate = try container.decodeIfPresent(Int.self, forKey: .maxFrameRate)
         extraEnvironment = try container.decodeIfPresent([String: String].self, forKey: .extraEnvironment) ?? [:]
+    }
+
+    /// The MetalFX spatial upscale factor only makes sense finite and within a
+    /// sane band: below 1.0 it would shrink the output, and a huge magnitude is
+    /// both useless and unsafe (it later reaches `Int(factor)`). Non-finite →
+    /// nil (fall back to the runtime default); finite → clamped to [1.0, 4.0].
+    static let upscaleFactorRange = 1.0 ... 4.0
+    private static func sanitizedUpscaleFactor(_ value: Double?) -> Double? {
+        guard let value, value.isFinite else { return nil }
+        return min(max(value, upscaleFactorRange.lowerBound), upscaleFactorRange.upperBound)
     }
 }

@@ -61,6 +61,36 @@ struct ModelCodableTests {
         #expect(settings.maxFrameRate == nil)
     }
 
+    /// A hand-edited bottle.json could carry an absurd upscale factor; left
+    /// as-is it later reaches `String(Int(value))` in the env composer, and an
+    /// out-of-Int64 magnitude traps. Clamp to the supported range on decode so
+    /// no persisted value can crash a launch.
+    @Test func metalFXFactorClampedToRangeOnDecode() throws {
+        let huge = try JSONDecoder().decode(
+            BottleSettings.self, from: Data(#"{"metalFXUpscaleFactor": 1e300}"#.utf8)
+        )
+        #expect(huge.metalFXUpscaleFactor == 4.0)
+
+        let tiny = try JSONDecoder().decode(
+            BottleSettings.self, from: Data(#"{"metalFXUpscaleFactor": 0}"#.utf8)
+        )
+        #expect(tiny.metalFXUpscaleFactor == 1.0)
+
+        let negative = try JSONDecoder().decode(
+            BottleSettings.self, from: Data(#"{"metalFXUpscaleFactor": -5}"#.utf8)
+        )
+        #expect(negative.metalFXUpscaleFactor == 1.0)
+    }
+
+    /// An in-range factor is preserved verbatim — clamping only touches values
+    /// outside the supported band.
+    @Test func metalFXFactorInRangePreservedOnDecode() throws {
+        let ok = try JSONDecoder().decode(
+            BottleSettings.self, from: Data(#"{"metalFXUpscaleFactor": 3}"#.utf8)
+        )
+        #expect(ok.metalFXUpscaleFactor == 3.0)
+    }
+
     @Test func runtimeDescriptorRoundTrip() throws {
         let descriptor = RuntimeDescriptor(
             id: "gptk-3.0-3",

@@ -94,8 +94,12 @@ public enum EnvironmentComposer {
     }
 
     /// 2.0 → "2", 1.5 → "1.5": integral factors drop the trailing ".0".
+    /// `Int(value)` traps outside Int64's range, so only take that path for a
+    /// finite, sanely-bounded integral value — persisted factors are already
+    /// clamped on decode, this guards the in-memory path too.
     private static func formatFactor(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(value)
+        value.isFinite && value == value.rounded() && abs(value) < 1e15
+            ? String(Int(value)) : String(value)
     }
 
     /// Parses a `key=value;key=value` DXMT_CONFIG string into pairs, skipping
