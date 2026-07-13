@@ -4,6 +4,31 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.10] — 2026-07-14
+
+Reliability and correctness fixes from a code-review pass — no behavior you
+asked for changes, several sharp edges go away.
+
+### Fixed
+- **"Recommend for this Mac" no longer clears a frame-rate cap you set by hand.**
+  It only ever touched Retina/MetalFX, but was silently resetting the cap to
+  uncapped; now it leaves it alone.
+- **A bottle whose first boot fails is rolled back instead of lingering.**
+  Previously a failed setup left a half-initialized "ghost" bottle on disk that
+  reappeared on the next refresh or restart.
+- **"Add to Library and Run" now tracks the program's running state**, so the
+  new card shows Starting/Running instead of offering Play on a program that is
+  already running (which could start a duplicate).
+- **Install progress stays on the bottle being installed into.** Starting an
+  install in one bottle and switching to another no longer shows the second
+  bottle the first one's progress bar.
+- **A corrupt hand-edited MetalFX upscale factor can no longer crash a launch**
+  — persisted values are clamped to a sane range on load.
+- **GPTK MetalFX preparation is non-destructive and no longer fails silently.**
+  It copies its shims instead of consuming the shared runtime's originals, and a
+  preparation failure surfaces instead of launching with MetalFX only pretending
+  to be on.
+
 ## [0.3.9] — 2026-07-13
 
 Graphics tuning, grounded in on-device measurement. Profiling CS2 on Apple
