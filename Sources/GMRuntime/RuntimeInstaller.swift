@@ -63,16 +63,12 @@ public struct RuntimeInstaller: Sendable {
         progress?(.finishing, 0)
         try await Quarantine.remove(from: unpacked, runner: quarantineRunner)
 
-        // Move into place atomically: never leave a half-copied runtime.
         let destination = await store.runtimeDirectory(id: entry.id)
-        if fm.fileExists(atPath: destination.path) {
-            try fm.removeItem(at: destination)
-        }
         try fm.createDirectory(
             at: destination.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        try fm.moveItem(at: unpacked, to: destination)
+        try Self.replaceDirectory(at: destination, with: unpacked)
 
         var descriptor = RuntimeDescriptor(
             id: entry.id,
@@ -89,5 +85,33 @@ public struct RuntimeInstaller: Sendable {
         try await store.save(descriptor)
         progress?(.finishing, 1)
         return descriptor
+    }
+
+    /// Replaces `destination` with `source` without a window where neither
+    /// exists: the old directory is renamed aside first, the new one moved
+    /// in, and only then is the backup deleted. If moving the new directory
+    /// fails, the backup is restored — a crash or error at any step leaves a
+    /// working runtime on disk (the old remove-then-move lost the runtime
+    /// when the second step died). `move` is injectable for failure tests.
+    static func replaceDirectory(
+        at destination: URL,
+        with source: URL,
+        move: (URL, URL) throws -> Void = { try FileManager.default.moveItem(at: $0, to: $1) }
+    ) throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: destination.path) else {
+            try move(source, destination)
+            return
+        }
+        let backup = destination.deletingLastPathComponent()
+            .appendingPathComponent(".\(destination.lastPathComponent).old-\(UUID().uuidString)")
+        try move(destination, backup)
+        do {
+            try move(source, destination)
+        } catch {
+            try? move(backup, destination)
+            throw error
+        }
+        try? fm.removeItem(at: backup)
     }
 }
