@@ -386,6 +386,37 @@ struct MetalFXLaunchTests {
         _ = try await launcher.launch(Program(name: "G", windowsPath: "C:\\g.exe"), in: env.bottle)
         #expect(!FileManager.default.fileExists(atPath: unixDir.appendingPathComponent("nvngx.so").path))
     }
+
+    /// A MetalFX preparation failure must not be swallowed: launching with the
+    /// env claiming MetalFX is on while the shim silently failed to install
+    /// leaves the user with a feature that doesn't work and no signal. The
+    /// launch surfaces the error instead.
+    @Test func launchSurfacesMetalFXPrepFailure() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let winDir = env.root.appendingPathComponent("runtimes/rt/gptk/wine/lib/wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: winDir, withIntermediateDirectories: true)
+        try Data("dll".utf8).write(to: winDir.appendingPathComponent("nvngx-on-metalfx.dll"))
+
+        // Force prep to fail: a FILE sits where the prefix's system32 must be created.
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let windows = prefix.appendingPathComponent("drive_c/windows")
+        try FileManager.default.createDirectory(at: windows, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: windows.appendingPathComponent("system32"))
+
+        var bottle = env.bottle
+        bottle.settings.metalFX = true
+        let launcher = WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: FakeRunner(),
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+        await #expect(throws: (any Error).self) {
+            _ = try await launcher.launch(Program(name: "G", windowsPath: "C:\\g.exe"), in: bottle)
+        }
+    }
 }
 
 @Suite("Launch argument sanitizing")

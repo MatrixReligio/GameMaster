@@ -524,4 +524,32 @@ struct MetalFXEnablerTests {
         // Idempotent: preparing again must not fail.
         try await enabler.prepare(runtimeID: "rt", prefix: prefix)
     }
+
+    /// The runtime is shared by every bottle, so preparing MetalFX must not
+    /// consume its template: the `nvngx-on-metalfx.*` originals must survive
+    /// (copied, not moved), so the runtime stays reusable and restorable.
+    @Test func prepareIsNonDestructiveToRuntimeTemplate() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        _ = try await installFakeRuntime(store: store, id: "rt")
+        let lib = await store.runtimeDirectory(id: "rt")
+            .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine/lib")
+        let unixDir = lib.appendingPathComponent("wine/x86_64-unix")
+        let winDir = lib.appendingPathComponent("wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: unixDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: winDir, withIntermediateDirectories: true)
+        try Data("so".utf8).write(to: unixDir.appendingPathComponent("nvngx-on-metalfx.so"))
+        try Data("dll".utf8).write(to: winDir.appendingPathComponent("nvngx-on-metalfx.dll"))
+
+        let prefix = dir.appendingPathComponent("prefix")
+        try await MetalFXEnabler(store: store).prepare(runtimeID: "rt", prefix: prefix)
+
+        // The activated copies exist…
+        #expect(FileManager.default.fileExists(atPath: unixDir.appendingPathComponent("nvngx.so").path))
+        #expect(FileManager.default.fileExists(atPath: winDir.appendingPathComponent("nvngx.dll").path))
+        // …and the template originals are still there (not moved away).
+        #expect(FileManager.default.fileExists(atPath: unixDir.appendingPathComponent("nvngx-on-metalfx.so").path))
+        #expect(FileManager.default.fileExists(atPath: winDir.appendingPathComponent("nvngx-on-metalfx.dll").path))
+    }
 }

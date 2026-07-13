@@ -2,8 +2,10 @@ import Foundation
 import GMModel
 
 /// Performs Apple's documented MetalFX preparation for a runtime + prefix:
-/// rename nvngx-on-metalfx.{so,dll} to nvngx.{so,dll} and copy nvngx.dll +
-/// nvapi64.dll into the prefix's system32. Idempotent.
+/// activate nvngx-on-metalfx.{so,dll} as nvngx.{so,dll} and copy nvngx.dll +
+/// nvapi64.dll into the prefix's system32. Idempotent, and non-destructive to
+/// the runtime: the `-on-metalfx` originals are copied, never moved, so the
+/// shared runtime template stays intact and reusable across bottles.
 public struct MetalFXEnabler: Sendable {
     private let store: RuntimeStore
 
@@ -20,15 +22,20 @@ public struct MetalFXEnabler: Sendable {
             .appendingPathComponent("lib", isDirectory: true)
         let fm = FileManager.default
 
-        let renames = [
+        // Copy — not move — so the runtime template keeps its `-on-metalfx`
+        // originals: the runtime is shared, and moving would consume it (and
+        // never restore on disable). Skip when the target already exists, which
+        // keeps this idempotent and leaves a runtime that already ships stock
+        // nvngx.{so,dll} untouched.
+        let activations = [
             ("wine/x86_64-unix/nvngx-on-metalfx.so", "wine/x86_64-unix/nvngx.so"),
             ("wine/x86_64-windows/nvngx-on-metalfx.dll", "wine/x86_64-windows/nvngx.dll")
         ]
-        for (from, to) in renames {
+        for (from, to) in activations {
             let source = lib.appendingPathComponent(from)
             let target = lib.appendingPathComponent(to)
             if fm.fileExists(atPath: source.path), !fm.fileExists(atPath: target.path) {
-                try fm.moveItem(at: source, to: target)
+                try fm.copyItem(at: source, to: target)
             }
         }
 
