@@ -82,6 +82,18 @@ struct PerformanceAdvisorTests {
         #expect(rec.extraEnvironment == ["FOO": "bar"])
     }
 
+    /// The no-MetalFX branch must PRESERVE the caller's Retina choice, not
+    /// hard-code it on: a GPTK base that already has Retina off stays off. This
+    /// distinguishes "leave base.retinaMode alone" from "set it to true".
+    @Test func noMetalFXBranchPreservesBaseRetina() {
+        let hw = HardwareProfile(physicalWidth: 3840, logicalWidth: 1920, refreshHz: 60)
+        var base = BottleSettings()
+        base.retinaMode = false
+        let rec = PerformanceAdvisor.recommend(for: hw, runtime: gptk, base: base)
+        #expect(rec.retinaMode == false)
+        #expect(rec.metalFX == false)
+    }
+
     /// The frame-rate cap is not a display-driven field — the UI's "Recommend"
     /// help promises only Retina/MetalFX changes, so a cap the user set by hand
     /// must survive the recommendation instead of being silently reset to
