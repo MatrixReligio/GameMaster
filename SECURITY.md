@@ -44,8 +44,9 @@ initial email and we'll arrange a key.
 - **Verified downloads.** Every runtime download is pinned to an exact URL and
   verified against a SHA-256 digest before it is unpacked and executed.
 - **No telemetry, no account, no server.** GameMaster has no analytics and
-  makes no network calls except downloading the runtime you asked for and
-  checking for its own updates.
+  makes no network calls except downloading the runtime you asked for, fetching
+  an installer you chose to run (e.g. Steam's official setup), and checking for
+  its own updates.
 - **Signed & notarized.** Releases are signed with an Apple Developer ID and
   notarized by Apple; auto-updates are verified with an EdDSA signature.
 

@@ -10,11 +10,13 @@ effortless for ordinary users, and contributions of all kinds are welcome.
 - **Keep it native and simple.** Follow the macOS Human Interface Guidelines.
   Default paths must stay one-click; expert options belong behind progressive
   disclosure.
-- **Don't vendor proprietary components in this repository.** Runtimes — Wine
-  builds and the open-source DXMT translation layer — are fetched from their
-  upstream sources at runtime via the runtime manifest, not committed here.
-  Apple's proprietary D3DMetal is never bundled; it is user-imported from the
-  evaluation-environment DMG. PRs that vendor it will be declined.
+- **Don't re-host proprietary components in this repository.** This repo and
+  GameMaster's own release assets contain no Apple proprietary code. Runtimes
+  are fetched at runtime from their upstream projects via the manifest, not
+  committed here — the default is a community Game Porting Toolkit build that
+  packages Apple's D3DMetal, and newer D3DMetal can additionally be imported
+  from Apple's evaluation-environment DMG. PRs that vendor proprietary
+  components into this repo will be declined. See [SECURITY.md](SECURITY.md).
 - **Localize user-facing strings** with `String(localized:)` and add every key
   to `scripts/gen-localizations.py` for all supported languages.
 
