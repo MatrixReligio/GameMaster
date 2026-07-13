@@ -44,22 +44,26 @@ struct PerformanceAdvisorTests {
     }
 
     /// A non-HiDPI display (logical == physical) has nothing to upscale from, so
-    /// MetalFX stays off — enabling it would upscale past the panel and waste GPU.
+    /// MetalFX stays off. With no MetalFX to restore sharpness, Retina is left at
+    /// the caller's setting rather than forced off (on a 1× panel it's a no-op
+    /// anyway).
     @Test func nonHiDPIDisplayLeavesMetalFXOff() {
         let hw = HardwareProfile(physicalWidth: 1920, logicalWidth: 1920, refreshHz: 60)
         let rec = PerformanceAdvisor.recommend(for: hw, runtime: dxmt)
-        #expect(rec.retinaMode == false)
+        #expect(rec.retinaMode == true)
         #expect(rec.metalFX == false)
         #expect(rec.metalFXUpscaleFactor == nil)
     }
 
     /// GPTK runtimes don't use DXMT's spatial upscaler; MetalFX there is DLSS
     /// conversion (game-specific + mutates the shared runtime), so it isn't a
-    /// default recommendation, and the DXMT factor never applies.
-    @Test func gptkRuntimeKeepsMetalFXOff() {
+    /// default recommendation. Crucially, without MetalFX to recover sharpness
+    /// Retina is left ON — turning it off would render at low resolution with
+    /// nothing to upscale it back, degrading the default image quality.
+    @Test func gptkRuntimeKeepsRetinaAndMetalFXOff() {
         let hw = HardwareProfile(physicalWidth: 3840, logicalWidth: 1920, refreshHz: 60)
         let rec = PerformanceAdvisor.recommend(for: hw, runtime: gptk)
-        #expect(rec.retinaMode == false)
+        #expect(rec.retinaMode == true)
         #expect(rec.metalFX == false)
         #expect(rec.metalFXUpscaleFactor == nil)
     }

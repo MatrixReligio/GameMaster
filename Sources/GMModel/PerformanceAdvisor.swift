@@ -46,10 +46,6 @@ public enum PerformanceAdvisor {
         base: BottleSettings = BottleSettings()
     ) -> BottleSettings {
         var settings = base
-        // Render at the logical resolution, not the doubled Retina backing:
-        // far fewer pixels, and MetalFX (below) restores the sharpness.
-        settings.retinaMode = false
-
         let scale = hardware.displayScale
         let isDXMT = if case .installed = runtime.dxmt {
             true
@@ -61,9 +57,15 @@ public enum PerformanceAdvisor {
         // HiDPI-scaled panel) and the runtime is DXMT — on GPTK the switch means
         // DLSS conversion, which is game-specific and mutates the shared runtime.
         if isDXMT, scale >= hiDPIThreshold {
+            // Render at the logical resolution, not the doubled Retina backing:
+            // far fewer pixels, and MetalFX restores the sharpness.
+            settings.retinaMode = false
             settings.metalFX = true
             settings.metalFXUpscaleFactor = scale >= doubleScaleThreshold ? 2.0 : 1.5
         } else {
+            // No MetalFX to recover sharpness (GPTK, or a non-HiDPI panel): keep
+            // the caller's Retina setting rather than rendering at low resolution
+            // with nothing to upscale it back — that would just degrade quality.
             settings.metalFX = false
             settings.metalFXUpscaleFactor = nil
         }

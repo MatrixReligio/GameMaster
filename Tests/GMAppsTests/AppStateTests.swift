@@ -194,13 +194,15 @@ struct AppStateTests {
     }
 
     /// New bottles pick up hardware-tuned graphics defaults when a display
-    /// profile is available: a HiDPI Mac renders at the logical resolution
-    /// (Retina off) instead of the default on, so the GPU isn't spent on pixels
-    /// the CPU-bound game can't feed. Existing bottles are never touched.
+    /// profile is available. On a DXMT runtime + HiDPI Mac that means rendering
+    /// at the logical resolution (Retina off) and letting MetalFX upscale — the
+    /// advisor's observable effect, proving it's wired into bottle creation.
+    /// (On the GPTK default runtime the advisor keeps Retina on, so this uses a
+    /// DXMT runtime to see the change.) Existing bottles are never touched.
     @Test func createBottleAppliesHardwareRecommendation() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let (fixture, entry) = try await makeWineStagingFixtureEntry(in: dir)
         let state = AppState(
             root: dir.appendingPathComponent("approot"),
             runner: FakeRunner(),
@@ -214,6 +216,7 @@ struct AppStateTests {
         await state.createBottle(name: "B")
         let bottle = try #require(state.bottles.first)
         #expect(bottle.settings.retinaMode == false)
+        #expect(bottle.settings.metalFX == true)
     }
 
     /// With no detectable display (headless CI, tests) new bottles keep the
@@ -326,10 +329,12 @@ struct AppStateTests {
     /// The settings sheet's "Recommend" button asks for settings tuned to this
     /// Mac; it returns a recommendation built from the bottle's current settings
     /// so unrelated fields are preserved, and callers apply it to their draft.
+    /// Uses a DXMT runtime so the recommendation has an observable effect
+    /// (Retina off + MetalFX on); on the GPTK default it keeps Retina on.
     @Test func recommendedSettingsUsesDisplayAndRuntime() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let (fixture, entry) = try await makeWineStagingFixtureEntry(in: dir)
         let state = AppState(
             root: dir.appendingPathComponent("approot"),
             runner: FakeRunner(),
@@ -344,6 +349,7 @@ struct AppStateTests {
         let bottle = try #require(state.bottles.first)
         let recommended = await state.recommendedSettings(for: bottle)
         #expect(recommended?.retinaMode == false)
+        #expect(recommended?.metalFX == true)
     }
 
     /// No display detectable → no recommendation (the button hides / does nothing).
