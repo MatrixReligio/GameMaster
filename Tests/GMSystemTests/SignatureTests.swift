@@ -12,6 +12,28 @@ struct CodesignVerifierTests {
         try await verifier.verifyAppleSigned(URL(fileURLWithPath: "/usr/bin/true"))
     }
 
+    /// `anchor apple` accepts ANY Apple platform binary (`/usr/bin/true`
+    /// included). Anchor files whose identity is known get their signing
+    /// identifier pinned on top, so a random Apple-signed file placed at the
+    /// anchor path no longer passes.
+    @Test func identifierPinRejectsOtherAppleBinaries() async throws {
+        let verifier = CodesignVerifier(runner: SubprocessRunner())
+        await #expect(throws: SignatureVerificationError(path: "/usr/bin/true")) {
+            try await verifier.verifyAppleSigned(
+                URL(fileURLWithPath: "/usr/bin/true"),
+                identifier: "com.apple.libd3dshared"
+            )
+        }
+    }
+
+    @Test func identifierPinAcceptsMatchingBinary() async throws {
+        let verifier = CodesignVerifier(runner: SubprocessRunner())
+        try await verifier.verifyAppleSigned(
+            URL(fileURLWithPath: "/usr/bin/true"),
+            identifier: "com.apple.true"
+        )
+    }
+
     @Test func rejectsUnsignedFile() async throws {
         let file = FileManager.default.temporaryDirectory
             .appendingPathComponent("gm-unsigned-\(UUID().uuidString).dylib")

@@ -6,25 +6,43 @@ import Synchronization
 import Testing
 @testable import GMRuntime
 
-/// Records verified paths; optionally rejects everything.
+/// Records verified paths; rejects everything or selected path suffixes.
 private final class FakeVerifier: SignatureVerifying, @unchecked Sendable {
     private let shouldThrow: Bool
+    private let rejectSuffixes: [String]
     private let checkedPaths = Mutex<[String]>([])
+    private let pinnedChecks = Mutex<[(path: String, identifier: String)]>([])
 
     var checked: [String] {
         checkedPaths.withLock { $0 }
     }
 
-    init(shouldThrow: Bool = false) {
+    var pinned: [(path: String, identifier: String)] {
+        pinnedChecks.withLock { $0 }
+    }
+
+    init(shouldThrow: Bool = false, rejectSuffixes: [String] = []) {
         self.shouldThrow = shouldThrow
+        self.rejectSuffixes = rejectSuffixes
     }
 
     func verifyAppleSigned(_ url: URL) async throws {
         checkedPaths.withLock { $0.append(url.path) }
-        if shouldThrow {
+        if shouldThrow || rejectSuffixes.contains(where: { url.path.hasSuffix($0) }) {
             throw CocoaError(.fileReadCorruptFile)
         }
     }
+
+    func verifyAppleSigned(_ url: URL, identifier: String) async throws {
+        pinnedChecks.withLock { $0.append((url.path, identifier)) }
+        try await verifyAppleSigned(url)
+    }
+}
+
+/// Minimal bytes the importer's Mach-O sniffer recognizes (MH_MAGIC_64 as
+/// stored on disk, little-endian).
+private func fakeMachO(_ tag: String) -> Data {
+    Data([0xCF, 0xFA, 0xED, 0xFE]) + Data(tag.utf8)
 }
 
 private func tempDir() throws -> URL {
@@ -47,10 +65,12 @@ private func makeEvalVolume(in dir: URL, name: String = "Evaluation environment 
     let framework = external.appendingPathComponent("D3DMetal.framework/Versions/A", isDirectory: true)
     try FileManager.default.createDirectory(at: framework, withIntermediateDirectories: true)
     try Data("d3dmetal".utf8).write(to: framework.appendingPathComponent("D3DMetal"))
-    // Apple ships the unix .so entries as symlinks into external/.
+    // Apple ships the unix .so entries as RELATIVE symlinks into external/.
+    // (The path-based API stores the string verbatim; the URL-based one
+    // would resolve "../.." against the process CWD first.)
     try FileManager.default.createSymbolicLink(
-        at: unixDir.appendingPathComponent("d3d11.so"),
-        withDestinationURL: URL(fileURLWithPath: "../../external/libd3dshared.dylib")
+        atPath: unixDir.appendingPathComponent("d3d11.so").path,
+        withDestinationPath: "../../external/libd3dshared.dylib"
     )
     try Data("dll".utf8).write(to: winDir.appendingPathComponent("d3d11.dll"))
     return volume
@@ -196,6 +216,125 @@ struct GPTKImporterTests {
         #expect(verifier.checked.contains { $0.hasSuffix("redist/lib/external/libd3dshared.dylib") })
     }
 
+    /// Verifying one anchor file and then copying the whole directory lets a
+    /// crafted DMG ride malicious dylibs in beside a genuine Apple file.
+    /// Every Mach-O in the payload must pass, or nothing lands.
+    @Test func rejectsPayloadWithUnsignedNativeBinaryBesideSignedAnchor() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let volume = try makeEvalVolume(in: dir)
+        try fakeMachO("evil").write(
+            to: volume.appendingPathComponent("redist/lib/external/evil.dylib")
+        )
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        _ = try await installFakeRuntime(store: store, id: "rt")
+
+        let importer = GPTKImporter(
+            store: store,
+            mounter: FakeMounter(mountPoint: volume),
+            runner: SubprocessRunner(),
+            verifier: FakeVerifier(rejectSuffixes: ["evil.dylib"])
+        )
+        await #expect(throws: RuntimeError.dmgSignatureInvalid) {
+            _ = try await importer.importGPTK(mountedVolume: volume, into: "rt")
+        }
+        // Runtime completely untouched.
+        let lib = await store.runtimeDirectory(id: "rt")
+            .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine/lib")
+        #expect(try String(
+            contentsOf: lib.appendingPathComponent("external/libd3dshared.dylib"),
+            encoding: .utf8
+        ) == "old-dylib")
+        #expect(!FileManager.default.fileExists(atPath: lib.appendingPathComponent("external/evil.dylib").path))
+    }
+
+    /// A symlink whose target escapes the payload would, once copied, make
+    /// the runtime load code from an attacker-influenced path outside the
+    /// verified volume. Apple's own links stay inside redist/lib.
+    @Test func rejectsSymlinkEscapingRedistDir() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        _ = try await installFakeRuntime(store: store, id: "rt")
+
+        // Absolute escape.
+        let volume = try makeEvalVolume(in: dir, name: "Eval abs 3.0")
+        try FileManager.default.createSymbolicLink(
+            at: volume.appendingPathComponent("redist/lib/external/escape.dylib"),
+            withDestinationURL: URL(fileURLWithPath: "/usr/lib/libSystem.B.dylib")
+        )
+        let importer = GPTKImporter(
+            store: store,
+            mounter: FakeMounter(mountPoint: volume),
+            runner: SubprocessRunner(),
+            verifier: FakeVerifier()
+        )
+        await #expect(throws: RuntimeError.dmgLayoutUnrecognized) {
+            _ = try await importer.importGPTK(mountedVolume: volume, into: "rt")
+        }
+
+        // Relative escape (climbing out with ../).
+        let volume2 = try makeEvalVolume(in: dir, name: "Eval rel 3.0")
+        try FileManager.default.createSymbolicLink(
+            atPath: volume2.appendingPathComponent("redist/lib/wine/x86_64-unix/up.so").path,
+            withDestinationPath: "../../../../../../outside.dylib"
+        )
+        let importer2 = GPTKImporter(
+            store: store,
+            mounter: FakeMounter(mountPoint: volume2),
+            runner: SubprocessRunner(),
+            verifier: FakeVerifier()
+        )
+        await #expect(throws: RuntimeError.dmgLayoutUnrecognized) {
+            _ = try await importer2.importGPTK(mountedVolume: volume2, into: "rt")
+        }
+
+        // Runtime untouched by either attempt.
+        let lib = await store.runtimeDirectory(id: "rt")
+            .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine/lib")
+        #expect(try String(
+            contentsOf: lib.appendingPathComponent("external/libd3dshared.dylib"),
+            encoding: .utf8
+        ) == "old-dylib")
+    }
+
+    /// The preflight must cover every Mach-O in the payload — framework main
+    /// binaries and loose dylibs — and pin the anchor to its known Apple
+    /// signing identifier rather than accepting any Apple-signed file.
+    @Test func verifiesAllMachOBinariesNotJustAnchor() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let volume = try makeEvalVolume(in: dir)
+        // Give the payload real Mach-O magic so the sniffer identifies it.
+        try fakeMachO("dylib").write(
+            to: volume.appendingPathComponent("redist/lib/external/libd3dshared.dylib")
+        )
+        try fakeMachO("d3dmetal").write(
+            to: volume.appendingPathComponent("redist/lib/external/D3DMetal.framework/Versions/A/D3DMetal")
+        )
+        try fakeMachO("extra").write(
+            to: volume.appendingPathComponent("redist/lib/external/libextra.dylib")
+        )
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        _ = try await installFakeRuntime(store: store, id: "rt")
+
+        let verifier = FakeVerifier()
+        let importer = GPTKImporter(
+            store: store,
+            mounter: FakeMounter(mountPoint: volume),
+            runner: SubprocessRunner(),
+            verifier: verifier
+        )
+        _ = try await importer.importGPTK(mountedVolume: volume, into: "rt")
+
+        #expect(verifier.checked.contains { $0.hasSuffix("D3DMetal.framework/Versions/A/D3DMetal") })
+        #expect(verifier.checked.contains { $0.hasSuffix("external/libextra.dylib") })
+        #expect(verifier.checked.contains { $0.hasSuffix("external/libd3dshared.dylib") })
+        #expect(verifier.pinned.contains {
+            $0.path.hasSuffix("libd3dshared.dylib") && $0.identifier == "com.apple.libd3dshared"
+        })
+    }
+
     @Test func rejectsForeignDMGAndStillUnmounts() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -285,7 +424,7 @@ struct MetalFXEnablerTests {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
-        let descriptor = try await installFakeRuntime(store: store, id: "rt")
+        _ = try await installFakeRuntime(store: store, id: "rt")
         let lib = await store.runtimeDirectory(id: "rt")
             .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine/lib")
         let unixDir = lib.appendingPathComponent("wine/x86_64-unix")

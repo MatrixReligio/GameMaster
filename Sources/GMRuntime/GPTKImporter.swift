@@ -73,6 +73,11 @@ public struct GPTKImporter: Sendable {
         return "imported"
     }
 
+    /// The anchor file's signing identifier, read off Apple's real payload
+    /// (`codesign -dvvv`); `anchor apple` alone would accept any Apple
+    /// platform binary planted at the anchor path.
+    static let anchorIdentifier = "com.apple.libd3dshared"
+
     private func overlay(from volume: URL, into runtimeID: String) async throws -> RuntimeDescriptor {
         guard let redistLib = Self.redistLibDirectory(inVolume: volume) else {
             throw RuntimeError.dmgLayoutUnrecognized
@@ -83,11 +88,15 @@ public struct GPTKImporter: Sendable {
         // Apple's before a single file moves.
         do {
             try await verifier.verifyAppleSigned(
-                redistLib.appendingPathComponent("external/libd3dshared.dylib")
+                redistLib.appendingPathComponent("external/libd3dshared.dylib"),
+                identifier: Self.anchorIdentifier
             )
         } catch {
             throw RuntimeError.dmgSignatureInvalid
         }
+        // One verified anchor is not enough: ditto copies the WHOLE
+        // directory, so everything else that could reach dyld must pass too.
+        try await preflightVerify(redistLib: redistLib)
         guard var descriptor = try await store.descriptor(id: runtimeID) else {
             throw RuntimeError.runtimeNotInstalled(id: runtimeID)
         }
@@ -117,6 +126,72 @@ public struct GPTKImporter: Sendable {
         try await store.save(descriptor)
         return descriptor
     }
+
+    /// Walks the payload before anything is copied: every Mach-O (loose
+    /// dylib, framework binary, extensionless executable) must be
+    /// Apple-signed, and every symlink must resolve inside the payload —
+    /// an escaping link would make the runtime load code from an
+    /// attacker-influenced path outside the verified volume.
+    private func preflightVerify(redistLib: URL) async throws {
+        let fm = FileManager.default
+        let root = redistLib.resolvingSymlinksInPath()
+        guard let enumerator = fm.enumerator(
+            at: redistLib,
+            includingPropertiesForKeys: [.isSymbolicLinkKey, .isRegularFileKey],
+            options: []
+        ) else {
+            throw RuntimeError.dmgLayoutUnrecognized
+        }
+        var contents: [URL] = []
+        while let item = enumerator.nextObject() as? URL {
+            contents.append(item)
+        }
+        var verified: Set<String> = []
+        for url in contents {
+            let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey])
+            if values?.isSymbolicLink == true {
+                // Resolve the link target lexically against its (resolved)
+                // parent — the target itself may not exist yet, and a live
+                // resolve of a dangling link would let it slip through.
+                guard let destination = try? fm.destinationOfSymbolicLink(atPath: url.path) else {
+                    throw RuntimeError.dmgLayoutUnrecognized
+                }
+                let parent = URL(
+                    fileURLWithPath: url.deletingLastPathComponent().resolvingSymlinksInPath().path,
+                    isDirectory: true
+                )
+                let target = URL(fileURLWithPath: destination, relativeTo: parent).standardizedFileURL
+                guard target.path == root.path || target.path.hasPrefix(root.path + "/") else {
+                    throw RuntimeError.dmgLayoutUnrecognized
+                }
+                continue // in-payload target is verified on its own visit
+            }
+            guard values?.isRegularFile == true, Self.isMachO(url) else { continue }
+            guard verified.insert(url.resolvingSymlinksInPath().path).inserted else { continue }
+            do {
+                try await verifier.verifyAppleSigned(url)
+            } catch {
+                throw RuntimeError.dmgSignatureInvalid
+            }
+        }
+    }
+
+    /// Windows PEs (.dll) and data files are not loadable by dyld and are
+    /// out of codesign's scope — only real Mach-O files need verification.
+    private static func isMachO(_ url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url),
+              let head = try? handle.read(upToCount: 4),
+              head.count == 4
+        else { return false }
+        try? handle.close()
+        let magic = head.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        return Self.machOMagics.contains(magic)
+    }
+
+    /// Thin (32/64-bit, both endians) and fat Mach-O magics.
+    private static let machOMagics: Set<UInt32> = [
+        0xFEED_FACE, 0xFEED_FACF, 0xCEFA_EDFE, 0xCFFA_EDFE, 0xCAFE_BABE, 0xBEBA_FECA
+    ]
 }
 
 /// Finds candidate Apple evaluation-environment DMGs (in ~/Downloads by
