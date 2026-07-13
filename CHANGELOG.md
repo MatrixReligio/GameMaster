@@ -4,6 +4,63 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.5] — 2026-07-13
+
+A hardening release: every finding of an independent full-codebase review,
+verified and fixed test-first.
+
+### Fixed
+- **Changes made during a long install no longer vanish.** Installers and the
+  settings sheet used to save whole-bottle snapshots taken minutes earlier;
+  renaming a bottle mid-install (or leaving settings open through one) lost
+  one side's changes. All writers now apply only their own fields on the
+  bottle's current state, transactionally inside the store.
+- **Deleting a bottle is guarded**: refused while an install writes into it,
+  and refused while Windows programs are running in it. A deleted bottle can
+  no longer be resurrected as a "ghost" by an install finishing late.
+- **The Retina toggle now works on existing bottles.** It lives in the Wine
+  registry, which was only written at bottle creation; changing it later
+  saved JSON and did nothing. The registry tweak is re-applied on change.
+- **Steam install retries are no longer poisoned by old failures**: Steam's
+  bootstrap log is append-only across attempts, and failure lines from a
+  previous bad-network run made every retry declare "offline" instantly.
+  Only failures new to the current attempt count now.
+- **Play/Run Once failures are reported.** A program dying right after
+  launch used to flick the card back to idle silently; it now surfaces the
+  exit code (late nonzero exits from quitting games stay ignored).
+- **Running games survive an app restart — visibly.** GameMaster now detects
+  live wineservers per bottle on launch (via the lock wineserver holds, not
+  stale directories), shows a green dot, and won't delete a bottle out from
+  under a running game.
+- **Replacing a runtime can't lose the old one**: the previous
+  remove-then-move had a window where a crash deleted the runtime outright;
+  it's now a backup-swap with rollback.
+- Corrupt bottle metadata is reported to the user instead of silently hiding
+  the bottle; metadata writes are atomic so crashes can't truncate them.
+- The PE icon parser survives crafted/truncated executables (64-bit bounds
+  arithmetic, memory-mapped reads, 256 MB size gate) instead of crashing
+  the app.
+- `release.sh` fails closed when Sparkle's appcast tool is missing and
+  removes stale appcasts up front.
+
+### Security
+- **DMG imports are signature-verified.** The D3DMetal import now requires
+  the payload to be signed by Apple before any file is copied into the
+  runtime, and auto-detected disk images show their full path in a
+  confirmation dialog first. Detection alone was name-based — a look-alike
+  DMG in ~/Downloads could previously plant executable code.
+
+### Changed
+- The app version is now single-sourced from `project.yml` (the committed
+  Info.plist references build settings; CI fails on drift).
+- DXMT bottles no longer offer a "DirectX translation: Off" that silently
+  did nothing (DXMT is built into Wine itself); the ⓘ text explains why.
+- NOTICE/README/SECURITY now describe the runtime licensing story exactly:
+  GameMaster re-hosts no Apple code; the default community runtime includes
+  Apple's evaluation libraries as its own project packages them; the Steam
+  runtime's Sikarugir/DXMT components are fully attributed with pinned
+  sources.
+
 ## [0.3.4] — 2026-07-13
 
 ### Added
