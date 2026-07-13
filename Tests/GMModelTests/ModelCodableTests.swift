@@ -13,6 +13,15 @@ struct BottleSettingsDefaultsTests {
         #expect(settings.advertiseAVX == false)
         #expect(settings.extraEnvironment.isEmpty)
     }
+
+    /// The DXMT tuning knobs are opt-in: nil means "use the runtime's own
+    /// default" (spatial factor 2.0, uncapped), so a fresh bottle changes
+    /// nothing about how DXMT behaves.
+    @Test func dxmtTuningDefaultsToRuntimeDefault() {
+        let settings = BottleSettings()
+        #expect(settings.metalFXUpscaleFactor == nil)
+        #expect(settings.maxFrameRate == nil)
+    }
 }
 
 @Suite("Codable round-trips")
@@ -30,11 +39,26 @@ struct ModelCodableTests {
         bottle.programs = [program]
         bottle.settings.sync = .msync
         bottle.settings.extraEnvironment = ["X": "1"]
+        bottle.settings.metalFXUpscaleFactor = 1.5
+        bottle.settings.maxFrameRate = 120
 
         let data = try JSONEncoder().encode(bottle)
         let decoded = try JSONDecoder().decode(Bottle.self, from: data)
         #expect(decoded == bottle)
+        #expect(decoded.settings.metalFXUpscaleFactor == 1.5)
+        #expect(decoded.settings.maxFrameRate == 120)
         #expect(decoded.schemaVersion == 1)
+    }
+
+    /// bottle.json written before these knobs existed has neither key; they
+    /// must decode to nil (runtime default), not fail the whole bottle.
+    @Test func dxmtTuningKeysMissingDecodeToNil() throws {
+        let json = """
+        {"dxBackend": "auto", "sync": "msync", "metalFX": true}
+        """
+        let settings = try JSONDecoder().decode(BottleSettings.self, from: Data(json.utf8))
+        #expect(settings.metalFXUpscaleFactor == nil)
+        #expect(settings.maxFrameRate == nil)
     }
 
     @Test func runtimeDescriptorRoundTrip() throws {

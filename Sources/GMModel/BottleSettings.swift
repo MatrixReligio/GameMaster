@@ -28,6 +28,14 @@ public struct BottleSettings: Codable, Equatable, Sendable {
     public var dxrOverride: Bool?
     /// Converts DLSS calls to MetalFX where possible (macOS 26+).
     public var metalFX: Bool
+    /// DXMT MetalFX spatial upscale factor (`d3d11.metalSpatialUpscaleFactor`):
+    /// the game's rendered frame is enlarged by this factor to fill the display.
+    /// nil = the runtime's own default (2.0); only used on DXMT runtimes with
+    /// MetalFX on.
+    public var metalFXUpscaleFactor: Double?
+    /// DXMT frame-rate limit (`d3d11.preferredMaxFrameRate`), paced by Metal.
+    /// nil = uncapped. DXMT runtimes only.
+    public var maxFrameRate: Int?
     public var extraEnvironment: [String: String]
 
     public init(
@@ -38,6 +46,8 @@ public struct BottleSettings: Codable, Equatable, Sendable {
         advertiseAVX: Bool = false,
         dxrOverride: Bool? = nil,
         metalFX: Bool = false,
+        metalFXUpscaleFactor: Double? = nil,
+        maxFrameRate: Int? = nil,
         extraEnvironment: [String: String] = [:]
     ) {
         self.dxBackend = dxBackend
@@ -47,6 +57,8 @@ public struct BottleSettings: Codable, Equatable, Sendable {
         self.advertiseAVX = advertiseAVX
         self.dxrOverride = dxrOverride
         self.metalFX = metalFX
+        self.metalFXUpscaleFactor = metalFXUpscaleFactor
+        self.maxFrameRate = maxFrameRate
         self.extraEnvironment = extraEnvironment
     }
 
@@ -54,7 +66,8 @@ public struct BottleSettings: Codable, Equatable, Sendable {
     /// carry unknown keys or unknown enum raw values; fall back to defaults
     /// rather than failing the whole bottle.
     private enum CodingKeys: String, CodingKey {
-        case dxBackend, retinaMode, sync, metalHUD, advertiseAVX, dxrOverride, metalFX, extraEnvironment
+        case dxBackend, retinaMode, sync, metalHUD, advertiseAVX, dxrOverride, metalFX
+        case metalFXUpscaleFactor, maxFrameRate, extraEnvironment
     }
 
     public init(from decoder: any Decoder) throws {
@@ -68,6 +81,9 @@ public struct BottleSettings: Codable, Equatable, Sendable {
         advertiseAVX = try container.decodeIfPresent(Bool.self, forKey: .advertiseAVX) ?? false
         dxrOverride = try container.decodeIfPresent(Bool.self, forKey: .dxrOverride)
         metalFX = try container.decodeIfPresent(Bool.self, forKey: .metalFX) ?? false
+        // Absent on bottles written before these knobs existed → nil = runtime default.
+        metalFXUpscaleFactor = try container.decodeIfPresent(Double.self, forKey: .metalFXUpscaleFactor)
+        maxFrameRate = try container.decodeIfPresent(Int.self, forKey: .maxFrameRate)
         extraEnvironment = try container.decodeIfPresent([String: String].self, forKey: .extraEnvironment) ?? [:]
     }
 }

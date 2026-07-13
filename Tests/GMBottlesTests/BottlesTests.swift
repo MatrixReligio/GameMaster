@@ -280,6 +280,90 @@ struct EnvironmentComposerTests {
         #expect(env["WINEDEBUG"] == "+d3d")
         #expect(env["MY_VAR"] == "7")
     }
+
+    private let dxmtRuntime = RuntimeDescriptor(
+        id: "sikarugir-10.0-6-dxmt-0.80",
+        displayVersion: "Sikarugir 10.0-6 + DXMT 0.80",
+        wineBinaryRelativePath: "wswine.bundle/bin/wine",
+        gptk: .none,
+        dxmt: .installed(version: "0.80")
+    )
+
+    /// The MetalFX quality knob only means something while MetalFX is upscaling,
+    /// so the factor reaches DXMT_CONFIG only when MetalFX is also on. Integral
+    /// factors serialize without a trailing ".0" (2.0 → "2").
+    @Test func metalFXFactorGoesToDXMTConfigWhenUpscaling() {
+        let env = EnvironmentComposer.environment(
+            for: bottle { $0.metalFX = true; $0.metalFXUpscaleFactor = 1.5 },
+            prefix: prefix,
+            runtime: dxmtRuntime
+        )
+        #expect(env["DXMT_CONFIG"] == "d3d11.metalSpatialUpscaleFactor=1.5")
+    }
+
+    @Test func metalFXFactorIgnoredWhenMetalFXOff() {
+        let env = EnvironmentComposer.environment(
+            for: bottle { $0.metalFX = false; $0.metalFXUpscaleFactor = 1.5 },
+            prefix: prefix,
+            runtime: dxmtRuntime
+        )
+        #expect(env["DXMT_CONFIG"] == nil)
+    }
+
+    @Test func maxFrameRateGoesToDXMTConfig() {
+        let env = EnvironmentComposer.environment(
+            for: bottle { $0.maxFrameRate = 120 },
+            prefix: prefix,
+            runtime: dxmtRuntime
+        )
+        #expect(env["DXMT_CONFIG"] == "d3d11.preferredMaxFrameRate=120")
+    }
+
+    /// Keys are emitted in a stable (alphabetical) order so the value is
+    /// deterministic and testable.
+    @Test func bothDXMTKnobsComposeSortedAndSemicolonSeparated() {
+        let env = EnvironmentComposer.environment(
+            for: bottle { $0.metalFX = true; $0.metalFXUpscaleFactor = 2.0; $0.maxFrameRate = 60 },
+            prefix: prefix,
+            runtime: dxmtRuntime
+        )
+        #expect(env["DXMT_CONFIG"] == "d3d11.metalSpatialUpscaleFactor=2;d3d11.preferredMaxFrameRate=60")
+    }
+
+    /// GPTK bottles don't run DXMT, so its config keys must never be emitted there.
+    @Test func gptkRuntimeIgnoresDXMTKnobs() {
+        let env = EnvironmentComposer.environment(
+            for: bottle { $0.metalFX = true; $0.metalFXUpscaleFactor = 1.5; $0.maxFrameRate = 90 },
+            prefix: prefix,
+            runtime: gptkRuntime
+        )
+        #expect(env["DXMT_CONFIG"] == nil)
+    }
+
+    /// A user who hand-writes DXMT_CONFIG in the advanced field keeps every key
+    /// they set; the structured knobs merge in, and the user's explicit value
+    /// wins on a conflict (the advanced field is the expert escape hatch).
+    @Test func userDXMTConfigMergesAndWinsOnConflict() {
+        let env = EnvironmentComposer.environment(
+            for: bottle {
+                $0.metalFX = true
+                $0.metalFXUpscaleFactor = 2.0
+                $0.maxFrameRate = 120
+                $0.extraEnvironment = ["DXMT_CONFIG": "d3d11.preferredMaxFrameRate=240;dxgi.forceSDR=True"]
+            },
+            prefix: prefix,
+            runtime: dxmtRuntime
+        )
+        #expect(env["DXMT_CONFIG"]
+            == "d3d11.metalSpatialUpscaleFactor=2;d3d11.preferredMaxFrameRate=240;dxgi.forceSDR=True")
+    }
+
+    /// With no knobs set and no user override, DXMT_CONFIG stays unset so the
+    /// runtime keeps its own defaults.
+    @Test func noDXMTConfigWhenNothingSet() {
+        let env = EnvironmentComposer.environment(for: bottle(), prefix: prefix, runtime: dxmtRuntime)
+        #expect(env["DXMT_CONFIG"] == nil)
+    }
 }
 
 @Suite("RegistryTweaks")
