@@ -155,7 +155,7 @@ public final class AppState {
             // runtime directories a crash left renamed-aside mid-replace.
             if !didRecoverRuntimeBackups {
                 didRecoverRuntimeBackups = true
-                try RuntimeInstaller.recoverOrphanedBackups(in: await runtimeStore.runtimesDirectory)
+                try await RuntimeInstaller.recoverOrphanedBackups(in: runtimeStore.runtimesDirectory)
             }
             let listing = try await bottleStore.listing()
             bottles = listing.bottles

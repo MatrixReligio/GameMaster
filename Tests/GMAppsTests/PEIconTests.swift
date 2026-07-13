@@ -85,7 +85,7 @@ struct PEIconExtractorTests {
     /// A GRPICONDIR claiming thousands of entries must not produce an
     /// unbounded .ico — the assembled output is capped.
     @Test func excessiveIconCountIsBounded() throws {
-        let pe = FixturePE.build(groupIconEntryCount: 1_000)
+        let pe = FixturePE.build(groupIconEntryCount: 1000)
         let ico = try #require(PEIconExtractor.extractIcoData(from: pe))
         let count = Int(ico[ico.startIndex + 4]) | (Int(ico[ico.startIndex + 5]) << 8)
         #expect(count <= 64)

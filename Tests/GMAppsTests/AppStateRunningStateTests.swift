@@ -1,0 +1,184 @@
+import Foundation
+import GMBottles
+import GMLaunch
+import GMModel
+import GMRuntime
+import GMSystem
+import GMTestSupport
+import Synchronization
+import Testing
+@testable import GMApps
+
+private func tempDir() throws -> URL {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("gm-appstate-running-tests-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
+}
+
+/// Builds a runtime tarball fixture and a manifest entry whose sha matches.
+/// (Copied from AppStateTests — the helpers are file-private by design.)
+private func makeRuntimeFixtureEntry(in dir: URL) async throws -> (URL, RuntimeManifest.Entry) {
+    let tree = dir.appendingPathComponent("tree/Game Porting Toolkit.app/Contents/Resources/wine/bin")
+    try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
+    try Data("#!/bin/sh\necho wine\n".utf8).write(to: tree.appendingPathComponent("wine64"))
+    let archive = dir.appendingPathComponent("runtime.tar.gz")
+    _ = try await SubprocessRunner().run(
+        executable: URL(fileURLWithPath: "/usr/bin/tar"),
+        arguments: ["-czf", archive.path, "-C", dir.appendingPathComponent("tree").path, "Game Porting Toolkit.app"],
+        environment: nil,
+        currentDirectory: nil,
+        outputLine: nil
+    )
+    let entry = try RuntimeManifest.Entry(
+        id: "gptk-test",
+        displayVersion: "GPTK test",
+        url: #require(URL(string: "https://example.com/runtime.tar.gz")),
+        sha256: SHA256.hexDigest(of: archive),
+        wineBinaryRelativePath: "Game Porting Toolkit.app/Contents/Resources/wine/bin/wine64",
+        bundledGPTKVersion: "3.0"
+    )
+    return (archive, entry)
+}
+
+/// Scriptable wineserver-activity probe (per-prefix on/off switch).
+private final class FakeProbe: PrefixActivityProbing, @unchecked Sendable {
+    private let active = Mutex<Set<String>>([])
+    func setActive(_ prefix: URL, _ value: Bool) {
+        active.withLock {
+            if value {
+                $0.insert(prefix.path)
+            } else {
+                $0.remove(prefix.path)
+            }
+        }
+    }
+
+    func isActive(prefix: URL) -> Bool {
+        active.withLock { $0.contains(prefix.path) }
+    }
+}
+
+@MainActor
+private func makeProbedState(
+    dir: URL,
+    fixture: URL,
+    entry: RuntimeManifest.Entry,
+    probe: FakeProbe,
+    stopProbeTimeoutSeconds: TimeInterval = 30
+) -> AppState {
+    AppState(
+        root: dir.appendingPathComponent("approot"),
+        runner: FakeRunner(),
+        downloader: FakeDownloader(fixture: fixture),
+        mounter: FakeMounter(mountPoint: dir),
+        manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+        systemToolRunner: SubprocessRunner(),
+        stopProbeTimeoutSeconds: stopProbeTimeoutSeconds,
+        activityProbe: probe
+    )
+}
+
+/// Running-state truth across app relaunches and stop requests: programs
+/// keep running when GameMaster quits (by design), so the wineserver probe —
+/// not just this session's bookkeeping — decides what shows as running.
+/// Split from AppStateGuardTests to keep files under the lint size cap.
+@Suite("AppState running state")
+@MainActor
+struct AppStateRunningStateTests {
+    /// Games survive GameMaster quitting. On relaunch the app must rediscover
+    /// bottles whose wineserver is still alive — showing them as running and
+    /// refusing deletion — instead of treating them as idle.
+    @Test func refreshDetectsExternallyRunningBottleAndBlocksDelete() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let probe = FakeProbe()
+        let state = makeProbedState(dir: dir, fixture: fixture, entry: entry, probe: probe)
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        #expect(!state.activeBottleIDs.contains(bottle.id))
+
+        // "App relaunch": the bottle's wineserver is alive out there.
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        probe.setActive(prefix, true)
+        await state.refresh()
+        #expect(state.activeBottleIDs.contains(bottle.id))
+
+        state.lastErrorMessage = nil
+        await state.deleteBottle(bottle)
+        #expect(state.lastErrorMessage != nil)
+        #expect(state.bottles.contains { $0.id == bottle.id })
+
+        // Programs stopped → delete works again.
+        probe.setActive(prefix, false)
+        await state.refresh()
+        state.lastErrorMessage = nil
+        await state.deleteBottle(bottle)
+        #expect(!state.bottles.contains { $0.id == bottle.id })
+    }
+
+    /// After an app relaunch the per-program running IDs are gone, but the
+    /// bottle's wineserver is still alive. The program must present as
+    /// running — offering Play on a live bottle invites a second instance.
+    @Test func programInActiveBottleReportsRunningAfterRestart() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let probe = FakeProbe()
+        let state = makeProbedState(dir: dir, fixture: fixture, entry: entry, probe: probe)
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let program = Program(name: "Steam", windowsPath: "C:\\steam.exe")
+
+        // "App relaunch": wineserver alive, runningIDs empty.
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        probe.setActive(prefix, true)
+        await state.refresh()
+        #expect(state.runningIDs.isEmpty)
+        #expect(state.isProgramRunning(program, in: bottle))
+
+        probe.setActive(prefix, false)
+        await state.refresh()
+        #expect(!state.isProgramRunning(program, in: bottle))
+    }
+
+    /// Stopping must believe the probe, not the request: state clears only
+    /// once the bottle's wineserver actually went quiet, and stays honest
+    /// when the kill didn't take.
+    @Test func stopPathsReprobeActivityInsteadOfAssumingSuccess() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let probe = FakeProbe()
+        let state = makeProbedState(
+            dir: dir, fixture: fixture, entry: entry, probe: probe, stopProbeTimeoutSeconds: 0.3
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        let program = Program(name: "Steam", windowsPath: "C:\\steam.exe")
+
+        // The kill didn't take (wineserver still alive) → still running.
+        probe.setActive(prefix, true)
+        await state.refresh()
+        await state.stopAll(in: bottle)
+        #expect(state.isProgramRunning(program, in: bottle))
+
+        // Now it took → cleared without waiting for the next refresh.
+        probe.setActive(prefix, false)
+        await state.stopAll(in: bottle)
+        #expect(!state.isProgramRunning(program, in: bottle))
+
+        // The graceful per-program stop path reprobes the same way.
+        probe.setActive(prefix, true)
+        await state.refresh()
+        #expect(state.isProgramRunning(program, in: bottle))
+        probe.setActive(prefix, false)
+        await state.stopProgram(program, in: bottle)
+        #expect(!state.isProgramRunning(program, in: bottle))
+    }
+}
