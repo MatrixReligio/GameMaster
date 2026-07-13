@@ -35,6 +35,11 @@ public final class AppState {
     /// Deleting one mid-install would race the installer's writes, so delete
     /// is refused while a bottle is in this set.
     public private(set) var busyBottleIDs: Set<UUID> = []
+    /// Bottles whose prefix has a live wineserver — Windows programs are
+    /// running in them right now, possibly launched by a previous app session
+    /// (games survive GameMaster quitting by design). Refreshed on every
+    /// refresh(); active bottles show as running and refuse deletion.
+    public private(set) var activeBottleIDs: Set<UUID> = []
     public var lastErrorMessage: String?
     public var selectedBottleID: UUID?
 
@@ -49,7 +54,7 @@ public final class AppState {
     private let launcher: WineLauncher
     private let appInstaller: AppInstaller
     private let programLibrary: ProgramLibrary
-    private let tracker = RunningTracker()
+    private let activityProbe: any PrefixActivityProbing
     private let runner: any ProcessRunning
     public let logsRoot: URL
 
@@ -88,11 +93,13 @@ public final class AppState {
         manifest: RuntimeManifest,
         detector: GPTKDetector = GPTKDetector(),
         systemToolRunner: (any ProcessRunning)? = nil,
-        launchFailureWindowSeconds: TimeInterval = 10
+        launchFailureWindowSeconds: TimeInterval = 10,
+        activityProbe: any PrefixActivityProbing = WineServerProbe()
     ) {
         self.manifest = manifest
         self.runner = runner
         self.launchFailureWindowSeconds = launchFailureWindowSeconds
+        self.activityProbe = activityProbe
         let toolRunner = systemToolRunner ?? runner
         gptkDetector = detector
         catalog = (try? InstallerCatalog.bundled()) ?? InstallerCatalog(entries: [])
@@ -129,6 +136,16 @@ public final class AppState {
         do {
             let listing = try await bottleStore.listing()
             bottles = listing.bottles
+            // Rediscover bottles whose wineserver is still alive (programs
+            // launched by a previous app session keep running by design).
+            var active: Set<UUID> = []
+            for bottle in listing.bottles {
+                let prefix = await bottleStore.prefixDirectory(of: bottle)
+                if activityProbe.isActive(prefix: prefix) {
+                    active.insert(bottle.id)
+                }
+            }
+            activeBottleIDs = active
             if !listing.corruptFiles.isEmpty {
                 lastErrorMessage = String(
                     localized: "\(listing.corruptFiles.count) bottle(s) have unreadable metadata and are hidden. Their files remain on disk untouched."
@@ -211,6 +228,16 @@ public final class AppState {
         guard !busyBottleIDs.contains(bottle.id) else {
             lastErrorMessage = String(
                 localized: "This bottle is being installed into. Wait for the install to finish, then delete it."
+            )
+            return
+        }
+        // Probe live (not the cached set): the user may have just stopped the
+        // game, or started one this very second — deletion needs the truth now.
+        let prefix = await bottleStore.prefixDirectory(of: bottle)
+        guard !activityProbe.isActive(prefix: prefix) else {
+            activeBottleIDs.insert(bottle.id)
+            lastErrorMessage = String(
+                localized: "Windows programs are still running in this bottle. Stop them first, then delete it."
             )
             return
         }

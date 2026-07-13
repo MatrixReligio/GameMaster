@@ -11,13 +11,24 @@ struct SidebarView: View {
         List(selection: $appState.selectedBottleID) {
             Section(String(localized: "Bottles")) {
                 ForEach(appState.bottles) { bottle in
-                    Label(bottle.name, systemImage: "gamecontroller.fill")
-                        .tag(bottle.id)
-                        .contextMenu {
-                            Button(String(localized: "Delete Bottle…"), role: .destructive) {
-                                bottleToDelete = bottle
-                            }
+                    HStack {
+                        Label(bottle.name, systemImage: "gamecontroller.fill")
+                        if appState.activeBottleIDs.contains(bottle.id) {
+                            Spacer()
+                            // Live wineserver in this bottle — possibly a game
+                            // launched before the app was last quit.
+                            Circle()
+                                .fill(.green)
+                                .frame(width: 8, height: 8)
+                                .help(String(localized: "Windows programs are running in this bottle"))
                         }
+                    }
+                    .tag(bottle.id)
+                    .contextMenu {
+                        Button(String(localized: "Delete Bottle…"), role: .destructive) {
+                            bottleToDelete = bottle
+                        }
+                    }
                 }
             }
         }

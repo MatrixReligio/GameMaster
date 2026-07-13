@@ -85,21 +85,6 @@ struct WindowsPathTests {
     }
 }
 
-@Suite("RunningTracker")
-struct RunningTrackerTests {
-    @Test func tracksLifecycle() async {
-        let tracker = RunningTracker()
-        let id = UUID()
-        #expect(await tracker.isRunning(id) == false)
-        await tracker.markStarted(programID: id)
-        #expect(await tracker.isRunning(id) == true)
-        #expect(await tracker.runningIDs == [id])
-        await tracker.markStopped(programID: id)
-        #expect(await tracker.isRunning(id) == false)
-        #expect(await tracker.runningIDs.isEmpty)
-    }
-}
-
 @Suite("WineLauncher")
 struct WineLauncherTests {
     @Test func launchRunsWineStartUnixWithComposedEnvironmentAndLogs() async throws {

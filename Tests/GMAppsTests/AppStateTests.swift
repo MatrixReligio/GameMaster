@@ -1,5 +1,6 @@
 import Foundation
 import GMBottles
+import GMLaunch
 import GMModel
 import GMRuntime
 import GMSystem
@@ -523,6 +524,65 @@ struct AppStateTests {
         state.lastErrorMessage = nil
         await state.runExe(dir.appendingPathComponent("game.exe"), in: bottle)
         #expect(state.lastErrorMessage != nil)
+    }
+
+    /// Games survive GameMaster quitting. On relaunch the app must rediscover
+    /// bottles whose wineserver is still alive — showing them as running and
+    /// refusing deletion — instead of treating them as idle.
+    @Test func refreshDetectsExternallyRunningBottleAndBlocksDelete() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+
+        final class FakeProbe: PrefixActivityProbing, @unchecked Sendable {
+            private let active = Mutex<Set<String>>([])
+            func setActive(_ prefix: URL, _ value: Bool) {
+                active.withLock {
+                    if value {
+                        $0.insert(prefix.path)
+                    } else {
+                        $0.remove(prefix.path)
+                    }
+                }
+            }
+
+            func isActive(prefix: URL) -> Bool {
+                active.withLock { $0.contains(prefix.path) }
+            }
+        }
+
+        let probe = FakeProbe()
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner(),
+            activityProbe: probe
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        #expect(!state.activeBottleIDs.contains(bottle.id))
+
+        // "App relaunch": the bottle's wineserver is alive out there.
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        probe.setActive(prefix, true)
+        await state.refresh()
+        #expect(state.activeBottleIDs.contains(bottle.id))
+
+        state.lastErrorMessage = nil
+        await state.deleteBottle(bottle)
+        #expect(state.lastErrorMessage != nil)
+        #expect(state.bottles.contains { $0.id == bottle.id })
+
+        // Programs stopped → delete works again.
+        probe.setActive(prefix, false)
+        await state.refresh()
+        state.lastErrorMessage = nil
+        await state.deleteBottle(bottle)
+        #expect(!state.bottles.contains { $0.id == bottle.id })
     }
 
     @Test func launchAndStopDelegateToWine() async throws {
