@@ -167,7 +167,9 @@ public enum FixturePE {
     }
 }
 
-extension FixedWidthInteger {
+public extension FixedWidthInteger {
+    /// Little-endian byte serialization, shared with tests that craft
+    /// malformed PE variants byte-by-byte.
     var le: Data {
         withUnsafeBytes(of: littleEndian) { Data($0) }
     }

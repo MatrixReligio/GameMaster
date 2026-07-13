@@ -8,8 +8,17 @@ public enum PEIconExtractor {
     private static let rtIcon: UInt32 = 3
     private static let rtGroupIcon: UInt32 = 14
 
+    /// Anything bigger is skipped outright: icon resources live in the first
+    /// megabytes, and reading a multi-gigabyte exe just to look for one would
+    /// balloon memory (games ship some enormous executables).
+    static let maxFileBytes = 256 * 1024 * 1024
+
     public static func extractIcoData(from exe: URL) -> Data? {
-        guard let data = try? Data(contentsOf: exe) else { return nil }
+        let size = (try? FileManager.default.attributesOfItem(atPath: exe.path))?[.size] as? Int
+        guard let size, size <= maxFileBytes else { return nil }
+        // Mapped, not loaded: the parser touches only the headers and the
+        // resource section, so most of the file never occupies real memory.
+        guard let data = try? Data(contentsOf: exe, options: [.mappedIfSafe]) else { return nil }
         return extractIcoData(from: data)
     }
 
@@ -129,14 +138,17 @@ private struct PEFile {
         }
     }
 
+    /// All arithmetic in 64 bits: every field is attacker-controlled (users
+    /// drop arbitrary .exe files), and crafted values near UInt32.max would
+    /// otherwise trap the whole process on overflow.
     func fileOffset(rva: UInt32) -> Int? {
-        for section in sections
-            where rva >= section.virtualAddress && rva < section.virtualAddress + max(
-                section.virtualSize,
-                section.rawSize
-            ) {
-            let offset = Int(section.rawOffset + (rva - section.virtualAddress))
-            return offset < data.count ? offset : nil
+        let target = UInt64(rva)
+        for section in sections {
+            let start = UInt64(section.virtualAddress)
+            let end = start + UInt64(max(section.virtualSize, section.rawSize))
+            guard target >= start, target < end else { continue }
+            let offset = UInt64(section.rawOffset) + (target - start)
+            return offset < UInt64(data.count) ? Int(offset) : nil
         }
         return nil
     }
