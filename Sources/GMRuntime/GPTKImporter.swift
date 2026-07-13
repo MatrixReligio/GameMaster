@@ -19,11 +19,18 @@ public struct GPTKImporter: Sendable {
     private let store: RuntimeStore
     private let mounter: any DiskImageMounting
     private let runner: any ProcessRunning
+    private let verifier: any SignatureVerifying
 
-    public init(store: RuntimeStore, mounter: any DiskImageMounting, runner: any ProcessRunning) {
+    public init(
+        store: RuntimeStore,
+        mounter: any DiskImageMounting,
+        runner: any ProcessRunning,
+        verifier: any SignatureVerifying
+    ) {
         self.store = store
         self.mounter = mounter
         self.runner = runner
+        self.verifier = verifier
     }
 
     public func importGPTK(dmg: URL, into runtimeID: String) async throws -> RuntimeDescriptor {
@@ -69,6 +76,17 @@ public struct GPTKImporter: Sendable {
     private func overlay(from volume: URL, into runtimeID: String) async throws -> RuntimeDescriptor {
         guard let redistLib = Self.redistLibDirectory(inVolume: volume) else {
             throw RuntimeError.dmgLayoutUnrecognized
+        }
+        // The detector picks candidates by file NAME (anything in ~/Downloads
+        // can match), and this overlay copies executable code into the
+        // runtime that every game then loads. Verify the payload is actually
+        // Apple's before a single file moves.
+        do {
+            try await verifier.verifyAppleSigned(
+                redistLib.appendingPathComponent("external/libd3dshared.dylib")
+            )
+        } catch {
+            throw RuntimeError.dmgSignatureInvalid
         }
         guard var descriptor = try await store.descriptor(id: runtimeID) else {
             throw RuntimeError.runtimeNotInstalled(id: runtimeID)

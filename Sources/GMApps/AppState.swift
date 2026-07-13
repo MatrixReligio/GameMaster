@@ -107,7 +107,12 @@ public final class AppState {
         runtimeStore = RuntimeStore(root: root)
         bottleStore = BottleStore(root: root)
         installer = RuntimeInstaller(store: runtimeStore, downloader: downloader, runner: toolRunner)
-        importer = GPTKImporter(store: runtimeStore, mounter: mounter, runner: toolRunner)
+        importer = GPTKImporter(
+            store: runtimeStore,
+            mounter: mounter,
+            runner: toolRunner,
+            verifier: CodesignVerifier(runner: toolRunner)
+        )
         launcher = WineLauncher(
             runtimeStore: runtimeStore,
             bottleStore: bottleStore,

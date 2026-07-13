@@ -133,6 +133,26 @@ struct GPTKImportPanel: View {
     @Environment(AppState.self) private var appState
     @State private var showPicker = false
     @State private var importing = false
+    @State private var pendingImport: PendingImport?
+
+    /// An auto-detected candidate awaiting explicit confirmation. Detection
+    /// matches by file name, so anything in ~/Downloads could be offered —
+    /// the user must see exactly WHICH file before code gets imported.
+    struct PendingImport: Identifiable {
+        enum Source {
+            case mountedVolume(URL)
+            case dmg(URL)
+        }
+
+        let source: Source
+
+        var id: String { url.path }
+        var url: URL {
+            switch source {
+            case let .mountedVolume(url), let .dmg(url): url
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -189,25 +209,53 @@ struct GPTKImportPanel: View {
                 }
             }
         }
+        .confirmationDialog(
+            String(localized: "Import Apple's graphics libraries from this file?"),
+            isPresented: Binding(
+                get: { pendingImport != nil },
+                set: {
+                    if !$0 {
+                        pendingImport = nil
+                    }
+                }
+            ),
+            presenting: pendingImport
+        ) { pending in
+            Button(String(localized: "Import")) {
+                run(pending)
+            }
+            Button(String(localized: "Choose Another File…")) {
+                showPicker = true
+            }
+            Button(String(localized: "Cancel"), role: .cancel) {}
+        } message: { pending in
+            Text(pending.url.path)
+        }
     }
 
-    /// Prefer auto-detected candidates (mounted volume, then ~/Downloads DMG)
-    /// so most users never see a file picker.
+    /// Prefer auto-detected candidates (mounted volume, then ~/Downloads DMG),
+    /// but always show WHICH file was found and ask before importing —
+    /// detection is name-based, and the import copies executable code.
     private func detectOrPick() {
         if let volume = appState.gptkDetector.candidateMountedVolumes().first {
-            importing = true
-            Task {
-                await appState.importGPTK(mountedVolume: volume)
-                importing = false
-            }
+            pendingImport = PendingImport(source: .mountedVolume(volume))
         } else if let dmg = appState.gptkDetector.candidateDMGs().first {
-            importing = true
-            Task {
-                await appState.importGPTK(dmg: dmg)
-                importing = false
-            }
+            pendingImport = PendingImport(source: .dmg(dmg))
         } else {
             showPicker = true
+        }
+    }
+
+    private func run(_ pending: PendingImport) {
+        importing = true
+        Task {
+            switch pending.source {
+            case let .mountedVolume(volume):
+                await appState.importGPTK(mountedVolume: volume)
+            case let .dmg(dmg):
+                await appState.importGPTK(dmg: dmg)
+            }
+            importing = false
         }
     }
 }

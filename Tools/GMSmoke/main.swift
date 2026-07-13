@@ -80,7 +80,8 @@ struct GMSmoke {
             let importer = GPTKImporter(
                 store: runtimeStore,
                 mounter: NoopMounter(),
-                runner: runner
+                runner: runner,
+                verifier: CodesignVerifier(runner: runner)
             )
             let updated = try await importer.importGPTK(
                 mountedVolume: URL(fileURLWithPath: volumePath),

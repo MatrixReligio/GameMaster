@@ -2,8 +2,30 @@ import Foundation
 import GMModel
 import GMSystem
 import GMTestSupport
+import Synchronization
 import Testing
 @testable import GMRuntime
+
+/// Records verified paths; optionally rejects everything.
+private final class FakeVerifier: SignatureVerifying, @unchecked Sendable {
+    private let shouldThrow: Bool
+    private let checkedPaths = Mutex<[String]>([])
+
+    var checked: [String] {
+        checkedPaths.withLock { $0 }
+    }
+
+    init(shouldThrow: Bool = false) {
+        self.shouldThrow = shouldThrow
+    }
+
+    func verifyAppleSigned(_ url: URL) async throws {
+        checkedPaths.withLock { $0.append(url.path) }
+        if shouldThrow {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+    }
+}
 
 private func tempDir() throws -> URL {
     let url = FileManager.default.temporaryDirectory
@@ -83,7 +105,7 @@ struct GPTKImporterTests {
         _ = try await installFakeRuntime(store: store, id: "rt")
 
         let mounter = FakeMounter(mountPoint: volume)
-        let importer = GPTKImporter(store: store, mounter: mounter, runner: SubprocessRunner())
+        let importer = GPTKImporter(store: store, mounter: mounter, runner: SubprocessRunner(), verifier: FakeVerifier())
         let descriptor = try await importer.importGPTK(
             dmg: URL(fileURLWithPath: "/tmp/Evaluation_environment_for_Windows_games_3.0.dmg"),
             into: "rt"
@@ -116,6 +138,59 @@ struct GPTKImporterTests {
         #expect(mounter.unmounted.count == 1)
     }
 
+    /// The detector picks candidates by FILE NAME, and the overlay copies
+    /// executable code into the runtime — anything in ~/Downloads could get
+    /// there. The import must verify the payload is Apple-signed BEFORE any
+    /// file lands in the runtime.
+    @Test func rejectsPayloadFailingAppleSignatureWithoutTouchingRuntime() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let volume = try makeEvalVolume(in: dir) // right layout, wrong signer
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        _ = try await installFakeRuntime(store: store, id: "rt")
+
+        let mounter = FakeMounter(mountPoint: volume)
+        let importer = GPTKImporter(
+            store: store,
+            mounter: mounter,
+            runner: SubprocessRunner(),
+            verifier: FakeVerifier(shouldThrow: true)
+        )
+        await #expect(throws: RuntimeError.dmgSignatureInvalid) {
+            _ = try await importer.importGPTK(dmg: URL(fileURLWithPath: "/tmp/evil.dmg"), into: "rt")
+        }
+        #expect(mounter.unmounted.count == 1)
+        // Runtime completely untouched.
+        let lib = await store.runtimeDirectory(id: "rt")
+            .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine/lib")
+        #expect(try String(
+            contentsOf: lib.appendingPathComponent("external/libd3dshared.dylib"),
+            encoding: .utf8
+        ) == "old-dylib")
+        let saved = try await store.descriptor(id: "rt")
+        #expect(saved?.gptk == .installed(version: "3.0-bundled"))
+    }
+
+    /// The signature check runs against the D3DMetal payload itself —
+    /// libd3dshared.dylib, the file that ends up loaded into every game.
+    @Test func verifiesSignatureOfTheD3DMetalPayload() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let volume = try makeEvalVolume(in: dir)
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        _ = try await installFakeRuntime(store: store, id: "rt")
+
+        let verifier = FakeVerifier()
+        let importer = GPTKImporter(
+            store: store,
+            mounter: FakeMounter(mountPoint: volume),
+            runner: SubprocessRunner(),
+            verifier: verifier
+        )
+        _ = try await importer.importGPTK(mountedVolume: volume, into: "rt")
+        #expect(verifier.checked.contains { $0.hasSuffix("redist/lib/external/libd3dshared.dylib") })
+    }
+
     @Test func rejectsForeignDMGAndStillUnmounts() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -125,7 +200,7 @@ struct GPTKImporterTests {
         _ = try await installFakeRuntime(store: store, id: "rt")
 
         let mounter = FakeMounter(mountPoint: bogusVolume)
-        let importer = GPTKImporter(store: store, mounter: mounter, runner: SubprocessRunner())
+        let importer = GPTKImporter(store: store, mounter: mounter, runner: SubprocessRunner(), verifier: FakeVerifier())
         await #expect(throws: RuntimeError.dmgLayoutUnrecognized) {
             _ = try await importer.importGPTK(dmg: URL(fileURLWithPath: "/tmp/other.dmg"), into: "rt")
         }
@@ -149,7 +224,8 @@ struct GPTKImporterTests {
         let importer = GPTKImporter(
             store: store,
             mounter: FakeMounter(mountPoint: volume),
-            runner: SubprocessRunner()
+            runner: SubprocessRunner(),
+            verifier: FakeVerifier()
         )
         let descriptor = try await importer.importGPTK(mountedVolume: volume, into: "rt")
         #expect(descriptor.gptk == .installed(version: "3.0"))

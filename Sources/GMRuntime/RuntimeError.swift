@@ -6,6 +6,7 @@ public enum RuntimeError: Error, LocalizedError, Equatable {
     case archiveLayoutUnrecognized
     case runtimeNotInstalled(id: String)
     case dmgLayoutUnrecognized
+    case dmgSignatureInvalid
 
     public var errorDescription: String? {
         switch self {
@@ -21,6 +22,10 @@ public enum RuntimeError: Error, LocalizedError, Equatable {
             // swiftlint:disable line_length
             String(
                 localized: "This disk image doesn’t look like Apple’s “Evaluation environment for Windows games”. Download it from developer.apple.com/download (search for “Evaluation environment”)."
+            )
+        case .dmgSignatureInvalid:
+            String(
+                localized: "The libraries in this disk image are not signed by Apple, so they were not imported. Download the original from developer.apple.com/download and try again."
             )
             // swiftlint:enable line_length
         }
