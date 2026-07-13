@@ -12,61 +12,72 @@ public enum RuntimeStatus: Sendable {
     case ready(gptk: GPTKStatus)
 }
 
+/// Raised when a second install/migration is attempted while one is already in
+/// flight — installs mutate a Wine prefix and share one progress slot, so only
+/// one runs at a time.
+public enum AppInstallError: LocalizedError {
+    case anotherInstallInProgress
+
+    public var errorDescription: String? {
+        String(localized: "Another install is in progress. Wait for it to finish, then try again.")
+    }
+}
+
 /// The app's single observable source of truth. Views bind to it; every
 /// effect goes through the injected system abstractions, so the whole state
 /// machine is testable from SPM without a UI.
 @MainActor
 @Observable
 public final class AppState {
-    public private(set) var bottles: [Bottle] = []
-    public private(set) var runtimeStatus: RuntimeStatus = .missing
-    public private(set) var runningIDs: Set<UUID> = []
+    public internal(set) var bottles: [Bottle] = []
+    public internal(set) var runtimeStatus: RuntimeStatus = .missing
+    public internal(set) var runningIDs: Set<UUID> = []
     /// Programs launched but whose window hasn't appeared yet (cold start). The
     /// card shows a "Starting…" spinner for these until `markProgramWindowReady`.
-    public private(set) var launchingIDs: Set<UUID> = []
+    public internal(set) var launchingIDs: Set<UUID> = []
     /// Programs whose window has closed but whose process is still shutting down
     /// (Steam takes tens of seconds to fully exit). The card shows "Closing…"
     /// until the process exits and the button re-enables.
-    public private(set) var closingIDs: Set<UUID> = []
+    public internal(set) var closingIDs: Set<UUID> = []
     /// Program currently being migrated to its run runtime on launch (so its card
     /// can show download progress instead of a plain "Running" state).
-    public private(set) var migratingProgramID: UUID?
+    public internal(set) var migratingProgramID: UUID?
     /// Bottles with a long-running install/migration writing into them.
     /// Deleting one mid-install would race the installer's writes, so delete
     /// is refused while a bottle is in this set.
-    public private(set) var busyBottleIDs: Set<UUID> = []
+    public internal(set) var busyBottleIDs: Set<UUID> = []
     /// Bottles whose prefix has a live wineserver — Windows programs are
     /// running in them right now, possibly launched by a previous app session
     /// (games survive GameMaster quitting by design). Refreshed on every
     /// refresh(); active bottles show as running and refuse deletion.
-    public private(set) var activeBottleIDs: Set<UUID> = []
+    public internal(set) var activeBottleIDs: Set<UUID> = []
     /// True while a new bottle's prefix is being initialized. wineboot takes
     /// seconds (more right after a runtime download, when Rosetta first
     /// translates the wine binaries) — the UI shows progress off this flag.
-    public private(set) var creatingBottle = false
+    public internal(set) var creatingBottle = false
     public var lastErrorMessage: String?
     public var selectedBottleID: UUID?
 
     public let catalog: InstallerCatalog
     public let gptkDetector: GPTKDetector
 
-    private let manifest: RuntimeManifest
-    private let runtimeStore: RuntimeStore
-    private let bottleStore: BottleStore
-    private let installer: RuntimeInstaller
-    private let importer: GPTKImporter
-    private let launcher: WineLauncher
-    private let appInstaller: AppInstaller
-    private let programLibrary: ProgramLibrary
-    private let activityProbe: any PrefixActivityProbing
-    private let runner: any ProcessRunning
+    let manifest: RuntimeManifest
+    let runtimeStore: RuntimeStore
+    let bottleStore: BottleStore
+    let installer: RuntimeInstaller
+    let importer: GPTKImporter
+    let launcher: WineLauncher
+    let appInstaller: AppInstaller
+    let programLibrary: ProgramLibrary
+    let activityProbe: any PrefixActivityProbing
+    let runner: any ProcessRunning
     public let logsRoot: URL
 
     // Monotonic tokens so a late progress callback (enqueued before an install
     // finished) can't overwrite the final state after completion.
-    private var runtimeInstallToken = 0
-    private var appInstallToken = 0
-    private var didRecoverRuntimeBackups = false
+    var runtimeInstallToken = 0
+    var appInstallToken = 0
+    var didRecoverRuntimeBackups = false
 
     /// Production entry point: real system implementations, app-support root.
     /// `hardwareProfileProvider` is supplied by the app layer (NSScreen-based)
@@ -91,18 +102,18 @@ public final class AppState {
     /// startup (missing DLL, bad path) and is reported; after it, a nonzero
     /// code is a game quitting with junk status and is ignored. Injectable so
     /// tests don't wait out real seconds.
-    private let launchFailureWindowSeconds: TimeInterval
+    let launchFailureWindowSeconds: TimeInterval
 
     /// How long a stop request waits for the bottle's wineserver to actually
     /// go quiet before concluding the kill didn't take. Injectable so tests
     /// don't wait out real seconds.
-    private let stopProbeTimeoutSeconds: TimeInterval
+    let stopProbeTimeoutSeconds: TimeInterval
 
     /// Supplies the running Mac's display profile so new bottles can be seeded
     /// with hardware-tuned graphics defaults. Returns nil when no display is
     /// detectable (headless/tests) — then nothing is guessed. Injected by the
     /// app layer (NSScreen); left nil in unit tests unless a case needs it.
-    private let hardwareProfileProvider: @MainActor () -> HardwareProfile?
+    let hardwareProfileProvider: @MainActor () -> HardwareProfile?
 
     /// `runner` launches wine; `systemToolRunner` (defaults to `runner`)
     /// launches tar/ditto/xattr — tests fake wine while keeping real tools.
@@ -358,7 +369,7 @@ public final class AppState {
     /// The install/migration currently writing into a bottle, tagged with that
     /// bottle's id so a sibling bottle's detail view can't show it. nil when
     /// nothing is installing.
-    public private(set) var activeInstall: ActiveInstall?
+    public internal(set) var activeInstall: ActiveInstall?
 
     /// Install/migration progress for `bottle`, or nil when a *different*
     /// bottle (or none) is installing — so switching to another bottle's view
@@ -368,9 +379,25 @@ public final class AppState {
         return (activeInstall.phase, activeInstall.fraction)
     }
 
+    /// True while any bottle has an install/migration in flight. Installs mutate
+    /// a Wine prefix and share one progress/token slot, so only one runs at a
+    /// time — the UI disables starting a second from another bottle's view.
+    public var isInstalling: Bool {
+        activeInstall != nil
+    }
+
     public func installCatalogApp(id: String, into bottle: Bottle) async {
         guard let entry = catalog.entries.first(where: { $0.id == id }) else {
             lastErrorMessage = String(localized: "Unknown installer.")
+            return
+        }
+        // One install/migration at a time: a second install — even into another
+        // bottle — races prefix writes and clobbers the shared progress/token
+        // and the delete-lock (busyBottleIDs). Refuse the concurrent start.
+        guard activeInstall == nil else {
+            lastErrorMessage = String(
+                localized: "Another install is in progress. Wait for it to finish, then try again."
+            )
             return
         }
         let bottleID = bottle.id
@@ -394,13 +421,15 @@ public final class AppState {
             report(error)
         }
         appInstallToken += 1
-        activeInstall = nil
+        if activeInstall?.bottleID == bottleID {
+            activeInstall = nil
+        }
         await refresh()
     }
 
     /// Downloads the installer's `runRuntimeID` runtime if it isn't installed yet.
     /// No-op when the entry doesn't switch runtimes or the runtime is present.
-    private func ensureRunRuntimeInstalled(for entry: InstallerCatalog.Entry, bottleID: UUID, token: Int) async throws {
+    func ensureRunRuntimeInstalled(for entry: InstallerCatalog.Entry, bottleID: UUID, token: Int) async throws {
         guard let runID = entry.runRuntimeID,
               try await runtimeStore.descriptor(id: runID) == nil,
               let runtimeEntry = manifest.entries.first(where: { $0.id == runID })
@@ -437,257 +466,5 @@ public final class AppState {
             programID: program.id,
             bottleDirectory: bottleDirectory
         )
-    }
-}
-
-// MARK: - Launching, stopping, and runtime queries
-
-public extension AppState {
-    /// Whether the program should present as running: either this session
-    /// launched it, or the bottle's wineserver is alive from a previous app
-    /// session (games survive GameMaster quitting by design) — after a
-    /// relaunch the per-program IDs are gone, and offering Play on a live
-    /// bottle invites a second instance.
-    func isProgramRunning(_ program: Program, in bottle: Bottle) -> Bool {
-        runningIDs.contains(program.id) || activeBottleIDs.contains(bottle.id)
-    }
-
-    func launch(program: Program, in bottle: Bottle) async {
-        runningIDs.insert(program.id)
-        // "Launching" spans the click until the program's window appears (or a
-        // safety timeout) — Steam's cold start under Wine takes tens of seconds,
-        // and the UI shows a spinner during it. The window is reported by the
-        // app layer via `markProgramWindowReady`; this timeout keeps the spinner
-        // from spinning forever if detection misses.
-        launchingIDs.insert(program.id)
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(90))
-            self?.launchingIDs.remove(program.id)
-        }
-        do {
-            let bottle = try await migrateSteamBottleIfNeeded(program: program, in: bottle)
-            await ensureWebHelperWrapper(for: program, in: bottle)
-            // `start /wait` returns only when the program's process fully exits —
-            // for Steam that's after its (slow) shutdown, which the "Closing…"
-            // state covers.
-            let launchedAt = Date()
-            let result = try await launcher.launch(program, in: bottle)
-            // Died on startup → tell the user. A nonzero exit after a real
-            // session is a game quitting with a junk status code — ignore it.
-            if result.exitCode != 0,
-               Date().timeIntervalSince(launchedAt) < launchFailureWindowSeconds {
-                report(LaunchError.commandFailed(command: program.name, exitCode: result.exitCode))
-            }
-        } catch {
-            report(error)
-        }
-        runningIDs.remove(program.id)
-        launchingIDs.remove(program.id)
-        closingIDs.remove(program.id)
-    }
-
-    /// Called by the app layer once the program's window is visible, to end the
-    /// "launching" spinner. No-op if already ended (timeout or exit).
-    func markProgramWindowReady(_ programID: UUID) {
-        launchingIDs.remove(programID)
-    }
-
-    /// Called by the app layer when the program's window has closed while its
-    /// process is still exiting, so the card can show "Closing…" until the
-    /// `launch` call returns.
-    func markProgramClosing(_ programID: UUID) {
-        guard runningIDs.contains(programID) else { return }
-        launchingIDs.remove(programID)
-        closingIDs.insert(programID)
-    }
-
-    /// Upgrades a Steam bottle created before the dual-runtime fix: downloads the
-    /// run runtime (with progress), bootstraps/wraps, and switches the bottle to
-    /// it — so launching an old GPTK-pinned Steam no longer loops. No-op once the
-    /// bottle is already on its run runtime. Returns the bottle to launch.
-    private func migrateSteamBottleIfNeeded(program: Program, in bottle: Bottle) async throws -> Bottle {
-        guard let entry = catalog.entries.first(where: {
-            $0.installedWindowsPath == program.windowsPath && $0.runRuntimeID != nil
-        }), let runID = entry.runRuntimeID, bottle.runtimeID != runID else {
-            return bottle
-        }
-        let bottleID = bottle.id
-        appInstallToken += 1
-        let token = appInstallToken
-        migratingProgramID = program.id
-        activeInstall = ActiveInstall(bottleID: bottleID, phase: .downloading, fraction: 0)
-        busyBottleIDs.insert(bottleID)
-        defer {
-            appInstallToken += 1
-            migratingProgramID = nil
-            activeInstall = nil
-            busyBottleIDs.remove(bottleID)
-        }
-        try await ensureRunRuntimeInstalled(for: entry, bottleID: bottleID, token: token)
-        let migrated = try await appInstaller.migrate(entry, in: bottle) { [weak self] phase, fraction in
-            Task { @MainActor [weak self] in
-                guard let self, appInstallToken == token else { return }
-                activeInstall = ActiveInstall(bottleID: bottleID, phase: phase, fraction: fraction)
-            }
-        }
-        bottles = try await bottleStore.list()
-        return migrated
-    }
-
-    /// Repairs Steam's CEF web-helper wrapper and service stub before launch: a
-    /// Steam self-update can overwrite them with the stock binaries, bringing
-    /// back the black UI and the "Steam Service Error" dialog. Idempotent and a
-    /// no-op for programs without those specs.
-    private func ensureWebHelperWrapper(for program: Program, in bottle: Bottle) async {
-        guard let entry = catalog.entries.first(where: {
-            $0.installedWindowsPath == program.windowsPath
-                && ($0.webhelperWrapper != nil || $0.serviceStub != nil)
-        }) else { return }
-        let prefix = await bottleStore.prefixDirectory(of: bottle)
-        try? AppInstaller.applySteamBinaryFixups(entry: entry, prefix: prefix)
-    }
-
-    /// Gracefully stops a running program. Catalog programs with
-    /// `shutdownArguments` get their own clean-exit command routed through the
-    /// running instance (Steam's `-shutdown` saves state and syncs the cloud);
-    /// everything else receives WM_CLOSE via taskkill, the same as clicking
-    /// the window's close button. The card shows "Closing…" until the
-    /// program's `launch` call returns.
-    func stopProgram(_ program: Program, in bottle: Bottle) async {
-        markProgramClosing(program.id)
-        do {
-            if let entry = catalog.entries.first(where: {
-                $0.installedWindowsPath == program.windowsPath && $0.shutdownArguments != nil
-            }), let arguments = entry.shutdownArguments {
-                let prefix = await bottleStore.prefixDirectory(of: bottle)
-                let exe = WindowsPath.toUnix(program.windowsPath, prefix: prefix)
-                _ = try await launcher.run(exe: exe, arguments: arguments, in: bottle, wait: false)
-            } else {
-                let imageName = program.windowsPath
-                    .split(separator: "\\").last.map(String.init) ?? program.windowsPath
-                try await launcher.taskkill(imageName: imageName, in: bottle)
-            }
-        } catch {
-            report(error)
-        }
-        await settleStoppedBottle(bottle)
-    }
-
-    /// Adds a dropped exe to the library and launches it through the running
-    /// state machine, so the new card shows Starting/Running instead of Play on
-    /// an already-running program (a second click would start a duplicate).
-    /// Unlike `runExe`, the launch is tracked, not fire-and-forget.
-    func addProgramAndLaunch(exe: URL, in bottle: Bottle) async {
-        let program: Program
-        do {
-            program = try await programLibrary.addProgram(exe: exe, name: nil, in: bottle)
-        } catch {
-            report(error)
-            return
-        }
-        await refresh()
-        await launch(program: program, in: bottle)
-    }
-
-    func runExe(_ exe: URL, in bottle: Bottle) async {
-        do {
-            // Fire-and-forget: the result is wine's `start` helper, which
-            // exits nonzero exactly when the program could not be launched.
-            let result = try await launcher.run(exe: exe, arguments: [], in: bottle)
-            if result.exitCode != 0 {
-                report(LaunchError.commandFailed(
-                    command: exe.lastPathComponent,
-                    exitCode: result.exitCode
-                ))
-            }
-        } catch {
-            report(error)
-        }
-    }
-
-    func stopAll(in bottle: Bottle) async {
-        do {
-            try await launcher.stopAll(in: bottle)
-        } catch {
-            report(error)
-        }
-        await settleStoppedBottle(bottle)
-    }
-
-    /// After a stop request, believe the probe — not the request: waits for
-    /// the bottle's wineserver to go quiet (bounded) and only then clears
-    /// its running state. If the kill didn't take, the bottle keeps showing
-    /// as running instead of optimistically flipping to idle.
-    private func settleStoppedBottle(_ bottle: Bottle) async {
-        let prefix = await bottleStore.prefixDirectory(of: bottle)
-        let deadline = Date().addingTimeInterval(stopProbeTimeoutSeconds)
-        while activityProbe.isActive(prefix: prefix), Date() < deadline {
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
-        if activityProbe.isActive(prefix: prefix) {
-            activeBottleIDs.insert(bottle.id)
-            // The bottle's wineserver is still alive after the wait. Clear the
-            // transient "Closing…" flag so the cards revert to Running + Stop
-            // (the user can retry or Force Stop All) instead of a spinner with
-            // no button. No error is surfaced here on purpose: this probe is
-            // whole-bottle, not per-program, so it also stays active during a
-            // slow-but-normal shutdown or while a sibling program keeps
-            // running — treating that as "failed to stop" would be a false
-            // alarm. A reliable per-program signal is future work.
-            for program in bottle.programs {
-                closingIDs.remove(program.id)
-            }
-        } else {
-            activeBottleIDs.remove(bottle.id)
-            // Only this bottle's programs stopped — leave other bottles' state.
-            for program in bottle.programs {
-                runningIDs.remove(program.id)
-                closingIDs.remove(program.id)
-            }
-        }
-    }
-
-    /// Whether the bottle's runtime translates D3D via DXMT builtins. DXMT is
-    /// installed INTO wine (replacing d3d11/dxgi), so unlike D3DMetal there is
-    /// no environment switch that turns it off — the settings sheet hides the
-    /// "Off" choice for these bottles instead of offering a dead toggle.
-    func bottleUsesDXMTRuntime(_ bottle: Bottle) async -> Bool {
-        let id = bottle.runtimeID ?? manifest.defaultRuntimeID
-        guard let descriptor = try? await runtimeStore.descriptor(id: id),
-              case .installed = descriptor.dxmt
-        else {
-            return false
-        }
-        return true
-    }
-
-    /// Graphics settings tuned to this Mac's display for `bottle`'s runtime, or
-    /// nil when no display is detectable. Built on top of the bottle's current
-    /// settings so unrelated fields survive. The settings sheet's "Recommend"
-    /// button applies the result to its draft — existing bottles change only if
-    /// the user then saves.
-    func recommendedSettings(for bottle: Bottle) async -> BottleSettings? {
-        guard let hardware = hardwareProfileProvider() else { return nil }
-        let id = bottle.runtimeID ?? manifest.defaultRuntimeID
-        guard let descriptor = try? await runtimeStore.descriptor(id: id) else { return nil }
-        return PerformanceAdvisor.recommend(for: hardware, runtime: descriptor, base: bottle.settings)
-    }
-
-    // MARK: - Environment checks
-
-    /// Rosetta 2 must be installed for the x86_64 wine runtime.
-    func rosettaInstalled() async -> Bool {
-        let result = try? await runner.run(
-            executable: URL(fileURLWithPath: "/usr/bin/pgrep"),
-            arguments: ["-q", "oahd"],
-            environment: nil,
-            currentDirectory: nil,
-            outputLine: nil
-        )
-        return result?.exitCode == 0
-    }
-
-    private func report(_ error: any Error) {
-        lastErrorMessage = error.localizedDescription
     }
 }

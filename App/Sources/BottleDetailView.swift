@@ -167,6 +167,11 @@ struct SteamHeroCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            } else if appState.isInstalling {
+                // Another bottle is installing; only one runs at a time.
+                Text(String(localized: "Another install is in progress…"))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             } else {
                 Button {
                     Task { await appState.installCatalogApp(id: "steam", into: bottle) }

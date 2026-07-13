@@ -284,6 +284,45 @@ struct AppStateTests {
         _ = await task.value
     }
 
+    /// One install/migration at a time: while an install runs in bottle A,
+    /// starting one in bottle B must be refused (they'd race Wine-prefix writes
+    /// and the shared progress/token state), leaving A's install untouched.
+    @Test func refusesAConcurrentInstallInAnotherBottle() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: RuntimeThenBlockDownloader(fixture: fixture, runtimeURL: entry.url),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "A")
+        let bottleA = try #require(state.bottles.first { $0.name == "A" })
+        await state.createBottle(name: "B")
+        let bottleB = try #require(state.bottles.first { $0.name == "B" })
+
+        let task = Task { await state.installCatalogApp(id: "steam", into: bottleA) }
+        while state.installProgress(for: bottleA) == nil {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(state.isInstalling)
+
+        // A second install into B while A is in flight is refused with a message,
+        // and does NOT clobber A's active install.
+        state.lastErrorMessage = nil
+        await state.installCatalogApp(id: "steam", into: bottleB)
+        #expect(state.lastErrorMessage != nil)
+        #expect(state.installProgress(for: bottleB) == nil)
+        #expect(state.installProgress(for: bottleA) != nil)
+
+        task.cancel()
+        _ = await task.value
+    }
+
     /// The settings sheet's "Recommend" button asks for settings tuned to this
     /// Mac; it returns a recommendation built from the bottle's current settings
     /// so unrelated fields are preserved, and callers apply it to their draft.
