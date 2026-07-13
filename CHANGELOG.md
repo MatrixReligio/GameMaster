@@ -4,6 +4,31 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.9] — 2026-07-13
+
+Graphics tuning, grounded in on-device measurement. Profiling CS2 on Apple
+silicon showed the bottleneck is the CPU/x86-translation layer, not the GPU —
+so this round fixes a misleading setting and adds real, verified DXMT controls
+rather than chasing FPS the graphics path can't deliver.
+
+### Added
+- **Bottles are tuned to your Mac's display.** New bottles now start with
+  graphics defaults matched to your screen — rendering at the logical (Retina-off)
+  resolution and letting MetalFX upscale to native, which is sharp and nearly
+  free when the GPU has headroom. A **"Recommend for this Mac"** button in Bottle
+  Settings re-applies them on demand. Existing bottles are never changed on their
+  own.
+- **MetalFX quality and a frame-rate limit** (DXMT runtimes). Choose how far
+  MetalFX upscales (1.5× / 2.0×) and cap the frame rate (60 / 120 / 240,
+  Metal-paced) for steadier frame times. Both merge cleanly with any DXMT_CONFIG
+  set by hand in the advanced field.
+
+### Changed
+- **The MetalFX explanation is now accurate.** It previously claimed MetalFX
+  "renders internally at a lower resolution" for a "big FPS gain"; in fact MetalFX
+  enlarges the output — the lower render resolution comes from turning Retina off.
+  The help text now says so, and recommends pairing the two.
+
 ## [0.3.8] — 2026-07-13
 
 A follow-up hardening round: the third security review's actionable findings,

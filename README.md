@@ -30,9 +30,13 @@ a few clicks:
 - **Metal-native DirectX translation** — DirectX 11 and 12 games run through
   Apple's D3DMetal (Game Porting Toolkit) or the open-source DXMT, depending
   on the runtime — Metal-native performance either way.
+- **Tuned to your Mac** — new bottles start with graphics defaults matched to
+  your display (render resolution, MetalFX upscaling and factor), and a
+  "Recommend for this Mac" button re-applies them any time.
 - **Simple by default, powerful when you need it** — sensible defaults up front;
-  Retina, sync mode, MetalFX, ray tracing, and per-bottle environment variables
-  are one disclosure triangle away.
+  Retina, sync mode, MetalFX (with an upscale-quality and frame-rate-limit
+  control), ray tracing, and per-bottle environment variables are one disclosure
+  triangle away.
 - **Native macOS** — SwiftUI, follows the Human Interface Guidelines, light/dark
   aware, localized in English, Simplified & Traditional Chinese, Japanese, and
   Korean.
