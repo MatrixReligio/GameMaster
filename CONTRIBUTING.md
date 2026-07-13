@@ -10,8 +10,11 @@ effortless for ordinary users, and contributions of all kinds are welcome.
 - **Keep it native and simple.** Follow the macOS Human Interface Guidelines.
   Default paths must stay one-click; expert options belong behind progressive
   disclosure.
-- **Never bundle Apple's D3DMetal** or any proprietary component. The graphics
-  layer is always user-imported. PRs that vendor it will be declined.
+- **Don't vendor proprietary components in this repository.** Runtimes — Wine
+  builds and the open-source DXMT translation layer — are fetched from their
+  upstream sources at runtime via the runtime manifest, not committed here.
+  Apple's proprietary D3DMetal is never bundled; it is user-imported from the
+  evaluation-environment DMG. PRs that vendor it will be declined.
 - **Localize user-facing strings** with `String(localized:)` and add every key
   to `scripts/gen-localizations.py` for all supported languages.
 
