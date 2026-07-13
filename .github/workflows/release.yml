@@ -80,8 +80,12 @@ jobs:
       - name: Upload release artifacts (DMG + appcast)
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.event.inputs.version }}
-          name: GameMaster ${{ github.event.inputs.version }}
+          # Normalize the tag to a v prefix regardless of how the version was
+          # typed: the appcast's enclosure URL is built with "v$VERSION", so a
+          # bare "0.3.5" input would otherwise publish a tag the appcast can't
+          # download from (this happened once; auto-update would have broken).
+          tag_name: ${{ startsWith(github.event.inputs.version, 'v') && github.event.inputs.version || format('v{0}', github.event.inputs.version) }}
+          name: GameMaster ${{ startsWith(github.event.inputs.version, 'v') && github.event.inputs.version || format('v{0}', github.event.inputs.version) }}
           files: |
             dist/GameMaster-*.dmg
             dist/appcast.xml
