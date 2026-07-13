@@ -64,4 +64,24 @@ struct SupplyChainTests {
             }
         }
     }
+
+    /// XcodeGen generates the project that gets signed; a floating
+    /// `brew install` version could change build inputs. Both workflows that
+    /// generate the project must download a pinned version and checksum it.
+    @Test func workflowsPinXcodeGenWithChecksum() throws {
+        for workflow in ["ci.yml", "release.yml"] {
+            let yml = try String(
+                contentsOf: repoRoot.appendingPathComponent(".github/workflows/\(workflow)"),
+                encoding: .utf8
+            )
+            #expect(
+                !yml.contains("brew install xcodegen"),
+                "\(workflow) still brew-installs a floating XcodeGen"
+            )
+            #expect(
+                yml.contains("XCODEGEN_SHA256"),
+                "\(workflow) does not checksum-pin XcodeGen"
+            )
+        }
+    }
 }
