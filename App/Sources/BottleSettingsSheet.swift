@@ -36,6 +36,7 @@ struct BottleSettingsSheet: View {
     /// DXMT ships as wine builtins — no setting can disable it, so the "Off"
     /// choice is hidden for DXMT bottles instead of silently doing nothing.
     @State private var runtimeUsesDXMT = false
+    @State private var advancedExpanded = false
 
     init(bottle: Bottle) {
         _draft = State(initialValue: bottle)
@@ -87,15 +88,17 @@ struct BottleSettingsSheet: View {
                 }
 
                 Section {
-                    DisclosureGroup(String(localized: "Advanced")) {
+                    DisclosureGroup(isExpanded: $advancedExpanded) {
                         HStack {
                             Toggle(String(localized: "Metal performance HUD"), isOn: $draft.settings.metalHUD)
                             InfoButton(text: SettingsHelp.metalHUD)
                         }
+                        .padding(.vertical, 4)
                         HStack {
                             Toggle(String(localized: "Advertise AVX support"), isOn: $draft.settings.advertiseAVX)
                             InfoButton(text: SettingsHelp.avx)
                         }
+                        .padding(.vertical, 4)
                         HStack {
                             Picker(String(localized: "Ray tracing (DXR)"), selection: dxrBinding) {
                                 Text(String(localized: "Automatic")).tag(0)
@@ -104,7 +107,8 @@ struct BottleSettingsSheet: View {
                             }
                             InfoButton(text: SettingsHelp.dxr)
                         }
-                        VStack(alignment: .leading, spacing: 4) {
+                        .padding(.vertical, 4)
+                        VStack(alignment: .leading, spacing: 6) {
                             Text(String(localized: "Environment variables (one per line, KEY=value)"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -112,6 +116,17 @@ struct BottleSettingsSheet: View {
                                 .font(.system(.caption, design: .monospaced))
                                 .frame(height: 64)
                         }
+                        .padding(.vertical, 6)
+                    } label: {
+                        // Full-width, tappable header: the bare DisclosureGroup
+                        // label only toggles on the chevron itself — a tiny
+                        // target users kept missing.
+                        Text(String(localized: "Advanced"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation { advancedExpanded.toggle() }
+                            }
                     }
                 }
             }
@@ -170,9 +185,13 @@ struct BottleSettingsSheet: View {
         let id = draft.id
         let name = draft.name
         let settings = draft.settings
+        // Close immediately: the save itself is instant file I/O, but a
+        // Retina change re-runs wine's regedit, which can cold-boot the
+        // prefix for seconds — the sheet must not sit frozen through that.
+        // Errors still surface via lastErrorMessage in the main window.
+        dismiss()
         Task {
             await appState.updateBottle(id: id, name: name, settings: settings)
-            dismiss()
         }
     }
 }

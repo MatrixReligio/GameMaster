@@ -28,11 +28,15 @@ struct BottleDetailView: View {
         }
         .navigationTitle(bottle.name)
         .toolbar {
+            // Visible titles, not icon-only: the purpose must be readable at
+            // a glance — macOS tooltips take over a second to appear and the
+            // delay is system-wide, not something the app can shorten.
             ToolbarItemGroup {
                 Button {
                     showRunPicker = true
                 } label: {
-                    Label(String(localized: "Run Windows Program…"), systemImage: "play.rectangle")
+                    Label(String(localized: "Run Program…"), systemImage: "play.rectangle")
+                        .labelStyle(.titleAndIcon)
                 }
                 .help(String(localized: "Run any Windows .exe or .msi in this bottle"))
 
@@ -40,18 +44,21 @@ struct BottleDetailView: View {
                     showLogs = true
                 } label: {
                     Label(String(localized: "Logs"), systemImage: "doc.text.magnifyingglass")
+                        .labelStyle(.titleAndIcon)
                 }
 
                 Button {
                     showSettings = true
                 } label: {
                     Label(String(localized: "Bottle Settings"), systemImage: "slider.horizontal.3")
+                        .labelStyle(.titleAndIcon)
                 }
 
                 Button(role: .destructive) {
                     Task { await appState.stopAll(in: bottle) }
                 } label: {
                     Label(String(localized: "Force Stop All"), systemImage: "stop.circle")
+                        .labelStyle(.titleAndIcon)
                 }
                 .help(String(localized: "Terminate every Windows process in this bottle"))
             }

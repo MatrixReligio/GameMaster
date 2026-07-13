@@ -40,6 +40,10 @@ public final class AppState {
     /// (games survive GameMaster quitting by design). Refreshed on every
     /// refresh(); active bottles show as running and refuse deletion.
     public private(set) var activeBottleIDs: Set<UUID> = []
+    /// True while a new bottle's prefix is being initialized. wineboot takes
+    /// seconds (more right after a runtime download, when Rosetta first
+    /// translates the wine binaries) — the UI shows progress off this flag.
+    public private(set) var creatingBottle = false
     public var lastErrorMessage: String?
     public var selectedBottleID: UUID?
 
@@ -220,6 +224,8 @@ public final class AppState {
     // MARK: - Bottles
 
     public func createBottle(name: String) async {
+        creatingBottle = true
+        defer { creatingBottle = false }
         do {
             let bottle = try await bottleStore.create(name: name, runtimeID: manifest.defaultRuntimeID)
             try await launcher.initializeBottle(bottle)

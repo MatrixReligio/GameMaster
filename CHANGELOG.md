@@ -4,6 +4,27 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.6] — 2026-07-13
+
+### Fixed
+- **Saving bottle settings no longer freezes the sheet.** A Retina change
+  re-runs wine's registry tool, which can cold-boot the prefix for seconds;
+  the sheet now closes immediately and the work continues in the background
+  (errors still surface in the main window).
+- **Creating a bottle shows progress.** wineboot takes seconds — much longer
+  right after a runtime download, while Rosetta first translates the wine
+  binaries — and the click used to feel ignored.
+- **"New Bottle" moved into the sidebar footer.** As a window-toolbar item it
+  migrated into a "»" overflow menu after collapsing and reopening the
+  sidebar (a NavigationSplitView quirk); the bottom-of-list button is also
+  the Finder/Notes convention.
+- The Advanced section of Bottle Settings is no longer cramped (proper row
+  spacing) and its header toggles from the whole row, not just the tiny
+  chevron.
+- Toolbar buttons show their titles alongside icons — macOS tooltips take
+  over a second to appear (a system-wide delay), so icon-only buttons left
+  their purpose guessable.
+
 ## [0.3.5] — 2026-07-13
 
 A hardening release: every finding of an independent full-codebase review,

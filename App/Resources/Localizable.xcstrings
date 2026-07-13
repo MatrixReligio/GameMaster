@@ -673,6 +673,34 @@
         }
       }
     },
+    "Creating the bottle…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ボトルを作成中…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보틀 생성 중…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在创建游戏瓶…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在建立遊戲瓶…"
+          }
+        }
+      }
+    },
     "D3DMetal %@ active": {
       "localizations": {
         "ja": {
@@ -2325,30 +2353,30 @@
         }
       }
     },
-    "Run Windows Program…": {
+    "Run Program…": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Windows プログラムを実行…"
+            "value": "プログラムを実行…"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Windows 프로그램 실행…"
+            "value": "프로그램 실행…"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "运行 Windows 程序…"
+            "value": "运行程序…"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "執行 Windows 程式…"
+            "value": "執行程式…"
           }
         }
       }

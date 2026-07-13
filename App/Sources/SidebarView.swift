@@ -33,19 +33,34 @@ struct SidebarView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            RuntimeStatusChip()
-                .padding(10)
-        }
-        .toolbar {
-            ToolbarItem {
-                Button {
-                    Task { await appState.createBottle(name: String(localized: "My Games")) }
-                } label: {
-                    Label(String(localized: "New Bottle"), systemImage: "plus")
+            VStack(spacing: 8) {
+                // Lives in the sidebar itself, NOT the window toolbar:
+                // sidebar-column toolbar items migrate into a ">>" overflow
+                // after collapsing and reopening the sidebar. Bottom-of-list
+                // "New" is also the Finder/Notes-style convention.
+                HStack {
+                    if appState.creatingBottle {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(String(localized: "Creating the bottle…"))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button {
+                            Task { await appState.createBottle(name: String(localized: "My Games")) }
+                        } label: {
+                            Label(String(localized: "New Bottle"), systemImage: "plus.circle.fill")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(appState.needsOnboarding)
+                        .help(String(localized: "Create a new Windows environment"))
+                    }
+                    Spacer()
                 }
-                .disabled(appState.needsOnboarding)
-                .help(String(localized: "Create a new Windows environment"))
+                .padding(.horizontal, 4)
+                RuntimeStatusChip()
             }
+            .padding(10)
         }
         .navigationTitle(Text(verbatim: "GameMaster"))
         .confirmationDialog(

@@ -423,3 +423,30 @@ struct AppStateGuardTests {
         #expect(await state.bottleUsesDXMTRuntime(dxmtBottle) == true)
     }
 }
+
+/// wineboot takes seconds (more after a fresh runtime download, when Rosetta
+/// first translates the wine binaries) — the UI needs a signal to show
+/// progress instead of appearing dead.
+@MainActor
+@Suite("Bottle creation progress")
+struct BottleCreationProgressTests {
+    @Test func createBottleExposesInProgressState() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        // Every wine call (wineboot, regedit) takes 200 ms.
+        let runner = FakeRunner(delayNanoseconds: 200_000_000)
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: runner)
+        await state.installDefaultRuntime()
+        #expect(!state.creatingBottle)
+
+        let creation = Task { await state.createBottle(name: "B") }
+        while !state.creatingBottle {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(state.creatingBottle)
+        await creation.value
+        #expect(!state.creatingBottle)
+        #expect(state.bottles.count == 1)
+    }
+}
