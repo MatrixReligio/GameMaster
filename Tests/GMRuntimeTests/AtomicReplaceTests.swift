@@ -59,6 +59,45 @@ struct AtomicReplaceTests {
         #expect(siblings == ["rt"])
     }
 
+    /// A crash between the two moves of replaceDirectory leaves the backup
+    /// on disk and the official directory missing — the runtime would stay
+    /// broken forever. Startup recovery must move the backup back.
+    @Test func recoversOrphanedBackupOnStartup() throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let runtimes = root.appendingPathComponent("runtimes", isDirectory: true)
+
+        // Crash scenario A: official dir gone, backup orphaned.
+        let orphan = runtimes.appendingPathComponent(".sikarugir-10.0-6-dxmt-0.80.old-AAAA", isDirectory: true)
+        try FileManager.default.createDirectory(at: orphan, withIntermediateDirectories: true)
+        try Data("wine".utf8).write(to: orphan.appendingPathComponent("wine"))
+
+        // Crash scenario B: official dir healthy, stale backup left behind.
+        let healthy = runtimes.appendingPathComponent("gptk-3.0-3", isDirectory: true)
+        try FileManager.default.createDirectory(at: healthy, withIntermediateDirectories: true)
+        try Data("current".utf8).write(to: healthy.appendingPathComponent("wine"))
+        let stale = runtimes.appendingPathComponent(".gptk-3.0-3.old-BBBB", isDirectory: true)
+        try FileManager.default.createDirectory(at: stale, withIntermediateDirectories: true)
+        try Data("stale".utf8).write(to: stale.appendingPathComponent("wine"))
+
+        try RuntimeInstaller.recoverOrphanedBackups(in: runtimes)
+
+        // A: restored under its official name.
+        let restored = runtimes.appendingPathComponent("sikarugir-10.0-6-dxmt-0.80")
+        #expect(try String(contentsOf: restored.appendingPathComponent("wine"), encoding: .utf8) == "wine")
+        // B: healthy dir untouched, stale backup removed.
+        #expect(try String(contentsOf: healthy.appendingPathComponent("wine"), encoding: .utf8) == "current")
+        let names = try FileManager.default.contentsOfDirectory(atPath: runtimes.path).sorted()
+        #expect(names == ["gptk-3.0-3", "sikarugir-10.0-6-dxmt-0.80"])
+    }
+
+    @Test func recoveryIsANoOpWithoutBackupsOrDirectory() throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        // Missing runtimes dir must not throw (first launch).
+        try RuntimeInstaller.recoverOrphanedBackups(in: root.appendingPathComponent("runtimes"))
+    }
+
     @Test func firstInstallJustMovesIntoPlace() throws {
         let root = try tempDir()
         defer { try? FileManager.default.removeItem(at: root) }

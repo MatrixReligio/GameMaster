@@ -87,6 +87,34 @@ public struct RuntimeInstaller: Sendable {
         return descriptor
     }
 
+    /// Cleans up after a crash that hit between replaceDirectory's two
+    /// moves: a `.（id).old-*` backup left with no (or an empty) official
+    /// directory is moved back into place — otherwise the runtime reads as
+    /// missing forever and gets pointlessly re-downloaded. Stale backups
+    /// next to a healthy directory are deleted. Call once at startup,
+    /// before any install can create fresh backups.
+    public static func recoverOrphanedBackups(in runtimesRoot: URL) throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: runtimesRoot.path) else { return }
+        let names = try fm.contentsOfDirectory(atPath: runtimesRoot.path)
+        for name in names {
+            guard name.hasPrefix("."),
+                  let marker = name.range(of: ".old-", options: .backwards),
+                  marker.lowerBound > name.index(after: name.startIndex)
+            else { continue }
+            let id = String(name[name.index(after: name.startIndex) ..< marker.lowerBound])
+            let backup = runtimesRoot.appendingPathComponent(name, isDirectory: true)
+            let official = runtimesRoot.appendingPathComponent(id, isDirectory: true)
+            let officialContents = (try? fm.contentsOfDirectory(atPath: official.path)) ?? []
+            if officialContents.isEmpty {
+                try? fm.removeItem(at: official) // empty husk, if present
+                try fm.moveItem(at: backup, to: official)
+            } else {
+                try fm.removeItem(at: backup)
+            }
+        }
+    }
+
     /// Replaces `destination` with `source` without a window where neither
     /// exists: the old directory is renamed aside first, the new one moved
     /// in, and only then is the backup deleted. If moving the new directory

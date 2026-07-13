@@ -221,6 +221,35 @@ struct AppStateGuardTests {
         #expect(FileManager.default.fileExists(atPath: corrupt.appendingPathComponent("bottle.json").path))
     }
 
+    /// A crash during a runtime replace leaves a `.（id).old-*` backup and no
+    /// official directory — without startup recovery the runtime reads as
+    /// missing and gets pointlessly re-downloaded.
+    @Test func refreshRecoversOrphanedRuntimeBackup() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: FakeRunner())
+
+        // Crash aftermath: only the backup exists, carrying valid metadata.
+        let backup = dir.appendingPathComponent("approot/runtimes/.\(entry.id).old-CRASH")
+        try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
+        let descriptor = RuntimeDescriptor(
+            id: entry.id,
+            displayVersion: entry.displayVersion,
+            wineBinaryRelativePath: entry.wineBinaryRelativePath,
+            gptk: .installed(version: "3.0")
+        )
+        try JSONEncoder().encode(descriptor).write(to: backup.appendingPathComponent("runtime.json"))
+
+        await state.refresh()
+
+        if case .ready = state.runtimeStatus {} else {
+            Issue.record("expected recovered runtime to read as ready, got \(state.runtimeStatus)")
+        }
+        let official = dir.appendingPathComponent("approot/runtimes/\(entry.id)/runtime.json")
+        #expect(FileManager.default.fileExists(atPath: official.path))
+    }
+
     /// A corrupt runtime.json must not make the runtime vanish silently
     /// (which read as "missing" and triggered a re-download) — the user is
     /// told, and the file stays on disk for recovery.

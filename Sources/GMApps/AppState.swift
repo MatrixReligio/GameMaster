@@ -66,6 +66,7 @@ public final class AppState {
     // finished) can't overwrite the final state after completion.
     private var runtimeInstallToken = 0
     private var appInstallToken = 0
+    private var didRecoverRuntimeBackups = false
 
     /// Production entry point: real system implementations, app-support root.
     public convenience init() {
@@ -150,6 +151,12 @@ public final class AppState {
 
     public func refresh() async {
         do {
+            // Once, before any install can create fresh backups: restore
+            // runtime directories a crash left renamed-aside mid-replace.
+            if !didRecoverRuntimeBackups {
+                didRecoverRuntimeBackups = true
+                try RuntimeInstaller.recoverOrphanedBackups(in: await runtimeStore.runtimesDirectory)
+            }
             let listing = try await bottleStore.listing()
             bottles = listing.bottles
             // Rediscover bottles whose wineserver is still alive (programs

@@ -108,19 +108,29 @@ public struct GPTKImporter: Sendable {
         let fm = FileManager.default
         try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
 
-        // ditto merges redist/lib/ INTO lib/: it overwrites the D3DMetal
-        // framework and DirectX shims but leaves every other builtin intact,
-        // preserving symlinks, permissions, and framework structure.
-        let result = try await runner.run(
-            executable: URL(fileURLWithPath: "/usr/bin/ditto"),
-            arguments: [redistLib.path, libDir.path],
-            environment: nil,
-            currentDirectory: nil,
-            outputLine: nil
-        )
-        guard result.exitCode == 0 else {
-            throw RuntimeError.dmgLayoutUnrecognized
+        // Build the merged tree ASIDE and swap it in whole: dittoing straight
+        // onto the live lib/ meant a failure mid-copy left it half old, half
+        // new. Staging lives next to lib/ so the final swap is a same-volume
+        // rename (replaceDirectory's backup-swap keeps a crash recoverable).
+        let staging = wineRoot.appendingPathComponent(".lib.gptk-staging-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fm.removeItem(at: staging) }
+        for source in [libDir, redistLib] {
+            // ditto merges INTO the target: first call copies the current
+            // lib, second overlays the D3DMetal framework and DirectX shims
+            // while leaving every other builtin intact (symlinks,
+            // permissions, and framework structure preserved).
+            let result = try await runner.run(
+                executable: URL(fileURLWithPath: "/usr/bin/ditto"),
+                arguments: [source.path, staging.path],
+                environment: nil,
+                currentDirectory: nil,
+                outputLine: nil
+            )
+            guard result.exitCode == 0 else {
+                throw RuntimeError.dmgLayoutUnrecognized
+            }
         }
+        try RuntimeInstaller.replaceDirectory(at: libDir, with: staging)
 
         descriptor.gptk = .installed(version: Self.versionString(from: volume.lastPathComponent))
         try await store.save(descriptor)

@@ -45,6 +45,31 @@ private func fakeMachO(_ tag: String) -> Data {
     Data([0xCF, 0xFA, 0xED, 0xFE]) + Data(tag.utf8)
 }
 
+/// Real subprocesses, except invocations whose arguments mention `marker`,
+/// which fail with exit 1 — simulates ditto dying mid-import.
+private struct SelectiveFailRunner: ProcessRunning {
+    let marker: String
+
+    func run(
+        executable: URL,
+        arguments: [String],
+        environment: [String: String]?,
+        currentDirectory: URL?,
+        outputLine: (@Sendable (String) -> Void)?
+    ) async throws -> ProcessResult {
+        if arguments.contains(where: { $0.contains(marker) }) {
+            return ProcessResult(exitCode: 1)
+        }
+        return try await SubprocessRunner().run(
+            executable: executable,
+            arguments: arguments,
+            environment: environment,
+            currentDirectory: currentDirectory,
+            outputLine: outputLine
+        )
+    }
+}
+
 private func tempDir() throws -> URL {
     let url = FileManager.default.temporaryDirectory
         .appendingPathComponent("gm-gptk-tests-\(UUID().uuidString)")
@@ -333,6 +358,49 @@ struct GPTKImporterTests {
         #expect(verifier.pinned.contains {
             $0.path.hasSuffix("libd3dshared.dylib") && $0.identifier == "com.apple.libd3dshared"
         })
+    }
+
+    /// ditto dying mid-copy used to leave the runtime's lib half old, half
+    /// new. The overlay must build the merged tree aside and swap it in
+    /// whole — on failure the runtime stays exactly as it was.
+    @Test func gptkOverlayFailureLeavesRuntimeIntact() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let volume = try makeEvalVolume(in: dir)
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        _ = try await installFakeRuntime(store: store, id: "rt")
+
+        // The ditto that overlays redist/lib fails; everything else is real.
+        let importer = GPTKImporter(
+            store: store,
+            mounter: FakeMounter(mountPoint: volume),
+            runner: SelectiveFailRunner(marker: "redist/lib"),
+            verifier: FakeVerifier()
+        )
+        await #expect(throws: RuntimeError.dmgLayoutUnrecognized) {
+            _ = try await importer.importGPTK(mountedVolume: volume, into: "rt")
+        }
+
+        // Old lib fully intact — no half-merged tree, no leftover staging.
+        let wineRoot = await store.runtimeDirectory(id: "rt")
+            .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine")
+        let lib = wineRoot.appendingPathComponent("lib")
+        #expect(try String(
+            contentsOf: lib.appendingPathComponent("external/libd3dshared.dylib"),
+            encoding: .utf8
+        ) == "old-dylib")
+        #expect(try String(
+            contentsOf: lib.appendingPathComponent("wine/x86_64-unix/ntdll.so"),
+            encoding: .utf8
+        ) == "core-builtin")
+        #expect(!FileManager.default.fileExists(
+            atPath: lib.appendingPathComponent("external/D3DMetal.framework").path
+        ))
+        let siblings = try FileManager.default.contentsOfDirectory(atPath: wineRoot.path).sorted()
+        #expect(siblings == ["bin", "lib"])
+        // Descriptor untouched too.
+        let saved = try await store.descriptor(id: "rt")
+        #expect(saved?.gptk == .installed(version: "3.0-bundled"))
     }
 
     @Test func rejectsForeignDMGAndStillUnmounts() async throws {
