@@ -88,6 +88,37 @@ struct RuntimeStoreTests {
         let wine = await store.wineBinary(for: descriptor)
         #expect(wine.path.hasSuffix("runtimes/gptk-3.0-3/Game Porting Toolkit.app/Contents/Resources/wine/bin/wine64"))
     }
+
+    /// A corrupt runtime.json must be reported, not silently filtered —
+    /// silence made an installed runtime "disappear" and triggered a
+    /// pointless re-download. The file stays on disk for recovery.
+    @Test func listingReportsCorruptEntriesWithoutDeleting() async throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = RuntimeStore(root: root)
+        let descriptor = RuntimeDescriptor(
+            id: "gptk-3.0-3",
+            displayVersion: "GPTK 3.0-3",
+            wineBinaryRelativePath: "wine/bin/wine64",
+            gptk: .installed(version: "3.0")
+        )
+        try await store.save(descriptor)
+        let corruptDir = root.appendingPathComponent("runtimes/broken", isDirectory: true)
+        try FileManager.default.createDirectory(at: corruptDir, withIntermediateDirectories: true)
+        let corruptFile = corruptDir.appendingPathComponent("runtime.json")
+        try Data("not json".utf8).write(to: corruptFile)
+
+        let listing = try await store.listing()
+        #expect(listing.runtimes == [descriptor])
+        // /var vs /private/var: compare symlink-resolved paths.
+        #expect(
+            listing.corruptFiles.map { $0.resolvingSymlinksInPath().path }
+                == [corruptFile.resolvingSymlinksInPath().path]
+        )
+        #expect(FileManager.default.fileExists(atPath: corruptFile.path))
+        // installedRuntimes still returns the healthy entries.
+        #expect(try await store.installedRuntimes() == [descriptor])
+    }
 }
 
 @Suite("RuntimeInstaller")

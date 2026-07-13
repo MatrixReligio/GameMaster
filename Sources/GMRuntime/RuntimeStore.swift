@@ -23,20 +23,44 @@ public actor RuntimeStore {
             .appendingPathComponent(descriptor.wineBinaryRelativePath)
     }
 
-    public func installedRuntimes() throws -> [RuntimeDescriptor] {
+    /// Runtimes that decoded plus the metadata files that didn't. Corrupt
+    /// files are reported, never deleted — the runtime payload is still on
+    /// disk and silently filtering it would trigger a pointless re-download.
+    public struct Listing: Sendable, Equatable {
+        public var runtimes: [RuntimeDescriptor]
+        public var corruptFiles: [URL]
+    }
+
+    public func listing() throws -> Listing {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: runtimesDirectory.path) else { return [] }
+        guard fm.fileExists(atPath: runtimesDirectory.path) else {
+            return Listing(runtimes: [], corruptFiles: [])
+        }
         let children = try fm.contentsOfDirectory(
             at: runtimesDirectory,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         )
-        return children.compactMap { dir in
+        var runtimes: [RuntimeDescriptor] = []
+        var corrupt: [URL] = []
+        for dir in children {
             let metadata = dir.appendingPathComponent("runtime.json")
-            guard let data = try? Data(contentsOf: metadata) else { return nil }
-            return try? JSONDecoder().decode(RuntimeDescriptor.self, from: data)
+            guard fm.fileExists(atPath: metadata.path) else { continue }
+            if let data = try? Data(contentsOf: metadata),
+               let descriptor = try? JSONDecoder().decode(RuntimeDescriptor.self, from: data) {
+                runtimes.append(descriptor)
+            } else {
+                corrupt.append(metadata)
+            }
         }
-        .sorted { $0.id < $1.id }
+        return Listing(
+            runtimes: runtimes.sorted { $0.id < $1.id },
+            corruptFiles: corrupt.sorted { $0.path < $1.path }
+        )
+    }
+
+    public func installedRuntimes() throws -> [RuntimeDescriptor] {
+        try listing().runtimes
     }
 
     public func descriptor(id: String) throws -> RuntimeDescriptor? {
@@ -48,6 +72,8 @@ public actor RuntimeStore {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(descriptor).write(to: dir.appendingPathComponent("runtime.json"))
+        // .atomic: a crash mid-write must never leave a truncated runtime.json
+        // (which listing() would then report as corrupt).
+        try encoder.encode(descriptor).write(to: dir.appendingPathComponent("runtime.json"), options: [.atomic])
     }
 }

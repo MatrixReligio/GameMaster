@@ -2717,6 +2717,34 @@
         }
       }
     },
+    "Some runtimes have unreadable metadata and are hidden. Their files remain on disk untouched.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一部のランタイムのメタデータが読み取れないため非表示になっています。ファイルはディスク上にそのまま残っています。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일부 런타임의 메타데이터를 읽을 수 없어 숨겨졌습니다. 해당 파일은 디스크에 그대로 남아 있습니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分运行时的元数据无法读取，已被隐藏。相关文件仍完整保留在磁盘上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分執行階段的中繼資料無法讀取，已被隱藏。相關檔案仍完整保留在磁碟上。"
+          }
+        }
+      }
+    },
     "Something Went Wrong": {
       "localizations": {
         "ja": {

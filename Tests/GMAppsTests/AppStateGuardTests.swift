@@ -203,6 +203,30 @@ struct AppStateGuardTests {
         #expect(FileManager.default.fileExists(atPath: corrupt.appendingPathComponent("bottle.json").path))
     }
 
+    /// A corrupt runtime.json must not make the runtime vanish silently
+    /// (which read as "missing" and triggered a re-download) — the user is
+    /// told, and the file stays on disk for recovery.
+    @Test func refreshReportsCorruptRuntimeMetadata() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: FakeRunner())
+        await state.installDefaultRuntime()
+
+        let corrupt = dir.appendingPathComponent("approot/runtimes/broken")
+        try FileManager.default.createDirectory(at: corrupt, withIntermediateDirectories: true)
+        try Data("not json".utf8).write(to: corrupt.appendingPathComponent("runtime.json"))
+
+        state.lastErrorMessage = nil
+        await state.refresh()
+        #expect(state.lastErrorMessage != nil)
+        // The healthy runtime is unaffected.
+        if case .ready = state.runtimeStatus {} else {
+            Issue.record("runtimeStatus should stay ready, got \(state.runtimeStatus)")
+        }
+        #expect(FileManager.default.fileExists(atPath: corrupt.appendingPathComponent("runtime.json").path))
+    }
+
     /// The settings sheet owns name + settings only. Saving them from a stale
     /// draft must not clobber programs/runtime added while the sheet was open.
     @Test func updateBottleSettingsDoesNotClobberConcurrentChanges() async throws {

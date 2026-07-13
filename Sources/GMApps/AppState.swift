@@ -161,9 +161,16 @@ public final class AppState {
                     localized: "Some bottles have unreadable metadata and are hidden. Their files remain on disk untouched."
                 )
             }
+            let runtimeListing = try await runtimeStore.listing()
+            if !runtimeListing.corruptFiles.isEmpty {
+                lastErrorMessage = String(
+                    // swiftlint:disable:next line_length
+                    localized: "Some runtimes have unreadable metadata and are hidden. Their files remain on disk untouched."
+                )
+            }
             if case .installing = runtimeStatus {
                 // Keep showing progress; installer updates status itself.
-            } else if let descriptor = try await runtimeStore.descriptor(id: manifest.defaultRuntimeID) {
+            } else if let descriptor = runtimeListing.runtimes.first(where: { $0.id == manifest.defaultRuntimeID }) {
                 runtimeStatus = .ready(gptk: descriptor.gptk)
             } else {
                 runtimeStatus = .missing
