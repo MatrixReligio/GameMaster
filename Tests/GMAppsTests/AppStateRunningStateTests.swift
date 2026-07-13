@@ -184,9 +184,12 @@ struct AppStateRunningStateTests {
 
     /// A Stop that times out (program refuses to die — a save dialog, Steam
     /// updating) must not leave the card stuck showing "Closing…" with no
-    /// button. After the timeout the program reverts to Running + Stop, its
-    /// closing flag is cleared, and the user is told it's still running.
-    @Test func stopTimeoutRevertsClosingToRunningWithMessage() async throws {
+    /// button. After the timeout the program reverts to Running + Stop and its
+    /// closing flag is cleared. No error is raised: the probe is whole-bottle,
+    /// so a still-alive wineserver can also mean a slow-but-normal shutdown or
+    /// a sibling program — surfacing "failed to stop" there would be a false
+    /// alarm.
+    @Test func stopTimeoutRevertsClosingToRunning() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
@@ -228,7 +231,7 @@ struct AppStateRunningStateTests {
 
         #expect(state.isProgramRunning(program, in: bottle)) // still running
         #expect(!state.closingIDs.contains(program.id)) // not stuck "Closing…"
-        #expect(state.lastErrorMessage != nil) // user is told
+        #expect(state.lastErrorMessage == nil) // no false "failed to stop" alarm
 
         // Cleanup: let the (now unblocked) program exit so launch() returns.
         probe.setActive(prefix, false)

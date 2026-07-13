@@ -570,17 +570,17 @@ public extension AppState {
         }
         if activityProbe.isActive(prefix: prefix) {
             activeBottleIDs.insert(bottle.id)
-            // The stop didn't take (the program is ignoring WM_CLOSE — a save
-            // dialog, Steam updating). Clear the transient "Closing…" flag so
-            // the cards revert to Running + Stop instead of a spinner with no
-            // button, and tell the user the programs are still alive.
+            // The bottle's wineserver is still alive after the wait. Clear the
+            // transient "Closing…" flag so the cards revert to Running + Stop
+            // (the user can retry or Force Stop All) instead of a spinner with
+            // no button. No error is surfaced here on purpose: this probe is
+            // whole-bottle, not per-program, so it also stays active during a
+            // slow-but-normal shutdown or while a sibling program keeps
+            // running — treating that as "failed to stop" would be a false
+            // alarm. A reliable per-program signal is future work.
             for program in bottle.programs {
                 closingIDs.remove(program.id)
             }
-            lastErrorMessage = String(
-                // swiftlint:disable:next line_length
-                localized: "Some programs are still running and could not be stopped. They may be waiting for you to confirm something in their window — handle it and try again, or use Force Stop All."
-            )
         } else {
             activeBottleIDs.remove(bottle.id)
             // Only this bottle's programs stopped — leave other bottles' state.

@@ -2717,34 +2717,6 @@
         }
       }
     },
-    "Some programs are still running and could not be stopped. They may be waiting for you to confirm something in their window — handle it and try again, or use Force Stop All.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一部のプログラムがまだ実行中で、停止できませんでした。ウィンドウ内で何かの確認を待っている可能性があります。対応してからもう一度お試しいただくか、「すべて強制停止」をご利用ください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "일부 프로그램이 아직 실행 중이어서 중지하지 못했습니다. 창에서 무언가를 확인하기를 기다리고 있을 수 있습니다. 처리한 후 다시 시도하거나 ‘모두 강제 중지’를 사용하세요."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "部分程序仍在运行，无法停止。它们可能正在等待你在窗口中进行确认——处理后再试一次，或使用“全部强制停止”。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "部分程式仍在執行，無法停止。它們可能正在等待你在視窗中進行確認——處理後再試一次，或使用「全部強制停止」。"
-          }
-        }
-      }
-    },
     "Some runtimes have unreadable metadata and are hidden. Their files remain on disk untouched.": {
       "localizations": {
         "ja": {
