@@ -12,13 +12,22 @@ DerivedData/
 *.pbxuser
 !default.pbxuser
 
-# XcodeGen generates the project; do not commit it
-GameMaster.xcodeproj/
+# XcodeGen generates the project; do not commit it — EXCEPT the SwiftPM
+# Package.resolved, which pins Sparkle to a reviewed revision (supply-chain
+# guard). Re-including a file under an ignored dir requires whitelisting
+# every parent level.
+GameMaster.xcodeproj/*
+!GameMaster.xcodeproj/project.xcworkspace/
+GameMaster.xcodeproj/project.xcworkspace/*
+!GameMaster.xcodeproj/project.xcworkspace/xcshareddata/
+GameMaster.xcodeproj/project.xcworkspace/xcshareddata/*
+!GameMaster.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+GameMaster.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
+!GameMaster.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # Swift Package Manager
 .build/
 .swiftpm/
-Package.resolved
 .spm-cache/
 
 # Signing / secrets — never commit

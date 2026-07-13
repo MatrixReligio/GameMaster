@@ -18,7 +18,7 @@ jobs:
     # validates under the same SDK we actually ship with.
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Swift version
         run: swift --version
       - name: Build
@@ -34,7 +34,7 @@ jobs:
     # surface at release time.
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install XcodeGen
         run: |
           brew untap aws/tap 2>/dev/null || true
@@ -57,7 +57,7 @@ jobs:
     name: Lint & Format
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install tools
         # The runner image pre-taps aws/tap; newer Homebrew requires tap trust
         # and warns on every invocation. Untap it so the logs stay clean.

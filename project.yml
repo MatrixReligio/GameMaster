@@ -13,7 +13,9 @@ packages:
     path: .
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
-    from: "2.9.3"
+    # Exact pin + committed Package.resolved: the updater ships inside the
+    # signed app, so its version must never float on a rebuild.
+    exactVersion: "2.9.4"
 
 settings:
   base:
