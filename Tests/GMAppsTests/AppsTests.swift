@@ -391,6 +391,46 @@ struct ProgramLibraryTests {
         #expect(program.name == "My App")
         #expect(program.windowsPath == "C:\\Games\\app.exe")
     }
+
+    @Test func addProgramPreservesConcurrentBottleChanges() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let library = ProgramLibrary(bottleStore: env.bottleStore)
+
+        // A rename lands after our snapshot was taken but before addProgram.
+        try await env.bottleStore.update(id: env.bottle.id) { $0.name = "Renamed" }
+
+        let program = try await library.addProgram(
+            exe: URL(fileURLWithPath: "/Users/me/Games/game.exe"),
+            name: nil,
+            in: env.bottle
+        )
+
+        let saved = try #require(await env.bottleStore.list().first)
+        #expect(saved.name == "Renamed")
+        #expect(saved.programs == [program])
+    }
+
+    @Test func removeProgramPreservesConcurrentBottleChanges() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let library = ProgramLibrary(bottleStore: env.bottleStore)
+        let program = try await library.addProgram(
+            exe: URL(fileURLWithPath: "/Users/me/Games/game.exe"),
+            name: nil,
+            in: env.bottle
+        )
+        let snapshot = try #require(await env.bottleStore.list().first)
+
+        // A rename lands after our snapshot was taken but before removeProgram.
+        try await env.bottleStore.update(id: env.bottle.id) { $0.name = "Renamed" }
+
+        try await library.removeProgram(id: program.id, from: snapshot)
+
+        let saved = try #require(await env.bottleStore.list().first)
+        #expect(saved.name == "Renamed")
+        #expect(saved.programs.isEmpty)
+    }
 }
 
 @Suite("AppInstaller failure handling")

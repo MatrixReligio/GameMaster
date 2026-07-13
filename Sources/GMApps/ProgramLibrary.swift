@@ -21,17 +21,16 @@ public struct ProgramLibrary: Sendable {
         )
         let bottleDirectory = await bottleStore.directory(of: bottle)
         ProgramIconStore.extractAndStore(exe: exe, programID: program.id, bottleDirectory: bottleDirectory)
-        var updated = bottle
-        updated.programs.append(program)
-        try await bottleStore.save(updated)
+        // Transactional append: the caller's snapshot may be stale (a rename
+        // or install may have landed since), so only the programs array is
+        // read-modify-written inside the store.
+        try await bottleStore.update(id: bottle.id) { $0.programs.append(program) }
         return program
     }
 
     public func removeProgram(id: UUID, from bottle: Bottle) async throws {
         let bottleDirectory = await bottleStore.directory(of: bottle)
         ProgramIconStore.removeIcon(programID: id, bottleDirectory: bottleDirectory)
-        var updated = bottle
-        updated.programs.removeAll { $0.id == id }
-        try await bottleStore.save(updated)
+        try await bottleStore.update(id: bottle.id) { $0.programs.removeAll { $0.id == id } }
     }
 }
