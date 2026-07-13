@@ -73,6 +73,17 @@ cp "$DXMT_ROOT/x86_64-windows/winemetal.dll" "$BUNDLE/lib/wine/x86_64-windows/"
 cp "$DXMT_ROOT/i386-windows/winemetal.dll" "$BUNDLE/lib/wine/i386-windows/"
 cp "$DXMT_ROOT/x86_64-unix/winemetal.so" "$BUNDLE/lib/wine/x86_64-unix/"
 
+echo "==> Injecting license bundle" >&2
+# Vendored license texts + per-component notices (scripts/licenses/, committed
+# to the repository for auditability). The bundle redistributes LGPL and other
+# open-source binaries; their license texts and source pointers travel with it.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LICENSE_SRC="$SCRIPT_DIR/licenses"
+[[ -f "$LICENSE_SRC/THIRD-PARTY-NOTICES.txt" ]] || { echo "scripts/licenses missing" >&2; exit 1; }
+mkdir -p "$BUNDLE/licenses"
+cp "$LICENSE_SRC"/*.txt "$BUNDLE/licenses/"
+mv "$BUNDLE/licenses/THIRD-PARTY-NOTICES.txt" "$BUNDLE/THIRD-PARTY-NOTICES.txt"
+
 echo "==> Packing" >&2
 OUT_TAR="$OUT_DIR/gamemaster-runtime-$RUNTIME_ID.tar.xz"
 rm -f "$OUT_TAR"

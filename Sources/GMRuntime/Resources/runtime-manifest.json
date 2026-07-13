@@ -20,8 +20,8 @@
     {
       "id": "sikarugir-10.0-6-dxmt-0.80",
       "displayVersion": "Sikarugir 10.0-6 + DXMT 0.80",
-      "url": "https://github.com/MatrixReligio/GameMaster/releases/download/runtime-assets-1/gamemaster-runtime-sikarugir-10.0-6-dxmt-0.80.tar.xz",
-      "sha256": "ed5aade500e05db01d363f6694c9b49597a19555f32de653ee016ae51999e6ce",
+      "url": "https://github.com/MatrixReligio/GameMaster/releases/download/runtime-assets-2/gamemaster-runtime-sikarugir-10.0-6-dxmt-0.80.tar.xz",
+      "sha256": "094680bbf4cb74fcf93e14be6c17222d3d548df4bd5eb2b75f51af41b845103f",
       "wineBinaryRelativePath": "wswine.bundle/bin/wine",
       "bundledGPTKVersion": null,
       "bundledDXMTVersion": "0.80"

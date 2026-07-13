@@ -38,7 +38,9 @@ Steam run runtime: GameMaster runtime asset
     Direct3D 10/11 for macOS/Wine. Copyright Feifan He for CodeWeavers,
     LGPL v2.1 or later.
   The assembly script documents the exact byte-for-byte inputs; no binary is
-  modified during assembly.
+  modified during assembly. The archive carries the applicable license texts
+  (wswine.bundle/licenses/) and a per-component THIRD-PARTY-NOTICES.txt with
+  source-code pointers, vendored from scripts/licenses/ in this repository.
 
 steamwebhelper wrapper (Tools/SteamWebHelperWrapper)
   The approach of wrapping steamwebhelper.exe to inject CEF compatibility

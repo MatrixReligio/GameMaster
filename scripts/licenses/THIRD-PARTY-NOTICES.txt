@@ -1,0 +1,167 @@
+GameMaster Steam run runtime — third-party notices
+===================================================
+
+This archive (wswine.bundle) is an aggregate of unmodified, pre-built
+third-party components assembled by scripts/assemble-steam-runtime.sh in
+https://github.com/MatrixReligio/GameMaster. Each component remains under
+its own license; the full license texts are included in the licenses/
+directory next to this file. This file lists every component shipped in
+the bundle, the license its upstream publishes, and where the source code
+can be obtained.
+
+Assembly inputs (byte-for-byte, SHA-256 pinned in the assembly script):
+  1. Sikarugir Wine engine  WS12WineSikarugir10.0_6.tar.xz
+     https://github.com/Sikarugir-App/Engines
+  2. Sikarugir Wrapper Template 1.0.11 (runtime dylibs)
+     https://github.com/Sikarugir-App/Wrapper
+  3. DXMT v0.80 builtins
+     https://github.com/3Shain/dxmt
+
+--------------------------------------------------------------------------
+Wine (bin/, lib/wine/, share/) — LGPL-2.1-or-later
+--------------------------------------------------------------------------
+The Wine engine in this bundle is the Sikarugir build, a CrossOver-derived
+Wine. Wine is Copyright (c) 1993-2026 the Wine project authors and is
+distributed under the GNU Lesser General Public License version 2.1 or
+later (licenses/LICENSE.LGPL-2.1.txt).
+Source code:
+  - Sikarugir engine sources: https://github.com/Sikarugir-App/Engines
+  - CrossOver sources:        https://www.codeweavers.com/crossover/source
+  - Wine upstream:            https://gitlab.winehq.org/wine/wine
+
+--------------------------------------------------------------------------
+DXMT (lib/wine/*/d3d11.dll, d3d10core.dll, dxgi.dll, winemetal.dll,
+      winemetal.so) — LGPL-2.1-or-later
+--------------------------------------------------------------------------
+Metal-based implementation of Direct3D 10/11. Copyright Feifan He for
+CodeWeavers. Distributed under LGPL v2.1 or later
+(licenses/LICENSE.LGPL-2.1.txt).
+Source code: https://github.com/3Shain/dxmt
+The original wined3d DLLs are preserved beside them as *.dll.wined3d.
+
+--------------------------------------------------------------------------
+Runtime libraries (lib/*.dylib), by upstream project
+--------------------------------------------------------------------------
+These dylibs come from the Sikarugir Wrapper Template (MacPorts-built).
+The license named is the one the respective upstream publishes; for
+dual-licensed projects both options are named. Sources for the MacPorts
+builds: https://www.macports.org and the upstream URLs below.
+
+brotli (libbrotlicommon, libbrotlidec, libbrotlienc)
+  MIT — licenses/LICENSE.MIT.txt
+  https://github.com/google/brotli
+
+bzip2 (libbz2)
+  bzip2 License — licenses/LICENSE.bzip2.txt
+  https://sourceware.org/bzip2/
+
+libiconv / libcharset (libiconv, libcharset)
+  LGPL-2.1-or-later — licenses/LICENSE.LGPL-2.1.txt
+  https://www.gnu.org/software/libiconv/
+
+libxslt (libxslt, libexslt)
+  MIT — licenses/LICENSE.MIT.txt
+  https://gitlab.gnome.org/GNOME/libxslt
+
+libffi
+  MIT — licenses/LICENSE.MIT.txt
+  https://github.com/libffi/libffi
+
+FreeType (libfreetype)
+  FreeType License (FTL) or GPL-2.0 (dual) — licenses/LICENSE.FTL.txt,
+  licenses/LICENSE.GPL-2.0.txt
+  https://freetype.org
+
+GMP (libgmp, libgmpxx)
+  LGPL-3.0-or-later or GPL-2.0-or-later (dual) —
+  licenses/LICENSE.LGPL-3.0.txt, licenses/LICENSE.GPL-2.0.txt
+  https://gmplib.org
+
+GnuTLS (libgnutls, libgnutlsxx)
+  LGPL-2.1-or-later — licenses/LICENSE.LGPL-2.1.txt
+  https://www.gnutls.org
+
+Nettle (libnettle, libhogweed)
+  LGPL-3.0-or-later or GPL-2.0-or-later (dual) —
+  licenses/LICENSE.LGPL-3.0.txt, licenses/LICENSE.GPL-2.0.txt
+  https://www.lysator.liu.se/~nisse/nettle/
+
+ICU (libicudata, libicui18n, libicuio, libicutest, libicutu, libicuuc)
+  Unicode/ICU License — licenses/LICENSE.ICU.txt
+  https://icu.unicode.org
+
+libidn2
+  LGPL-3.0-or-later or GPL-2.0-or-later (dual) —
+  licenses/LICENSE.LGPL-3.0.txt, licenses/LICENSE.GPL-2.0.txt
+  https://www.gnu.org/software/libidn/
+
+libinotify-kqueue (libinotify)
+  MIT — licenses/LICENSE.MIT.txt
+  https://github.com/libinotify-kqueue/libinotify-kqueue
+
+gettext runtime (libintl)
+  LGPL-2.1-or-later — licenses/LICENSE.LGPL-2.1.txt
+  https://www.gnu.org/software/gettext/
+
+LZ4 (liblz4)
+  BSD-2-Clause (library) — licenses/LICENSE.BSD-2-Clause.txt
+  https://github.com/lz4/lz4
+
+XZ Utils (liblzma)
+  0BSD — licenses/LICENSE.0BSD.txt
+  https://tukaani.org/xz/
+
+MacPorts legacy-support (libMacportsLegacySupport, libMacportsLegacySystem.B)
+  MIT — licenses/LICENSE.MIT.txt
+  https://github.com/macports/macports-legacy-support
+
+MoltenVK (libMoltenVK)
+  Apache-2.0 — licenses/LICENSE.Apache-2.0.txt
+  https://github.com/KhronosGroup/MoltenVK
+
+p11-kit (libp11-kit, p11-kit-proxy)
+  BSD-3-Clause — licenses/LICENSE.BSD-3-Clause.txt
+  https://p11-glue.github.io/p11-glue/p11-kit.html
+
+libpcap
+  BSD-3-Clause — licenses/LICENSE.BSD-3-Clause.txt
+  https://www.tcpdump.org
+
+libpng (libpng, libpng16)
+  PNG Reference Library License v2 — licenses/LICENSE.libpng-2.0.txt
+  http://www.libpng.org/pub/png/libpng.html
+
+SDL2 (libSDL2)
+  zlib License — licenses/LICENSE.Zlib.txt
+  https://www.libsdl.org
+
+libtasn1
+  LGPL-2.1-or-later — licenses/LICENSE.LGPL-2.1.txt
+  https://www.gnu.org/software/libtasn1/
+
+libunistring
+  LGPL-3.0-or-later or GPL-2.0-or-later (dual) —
+  licenses/LICENSE.LGPL-3.0.txt, licenses/LICENSE.GPL-2.0.txt
+  https://www.gnu.org/software/libunistring/
+
+libxml2
+  MIT — licenses/LICENSE.MIT.txt
+  https://gitlab.gnome.org/GNOME/libxml2
+
+zlib (libz)
+  zlib License — licenses/LICENSE.Zlib.txt
+  https://zlib.net
+
+Zstandard (libzstd)
+  BSD-3-Clause or GPL-2.0 (dual) — licenses/LICENSE.BSD-3-Clause.txt,
+  licenses/LICENSE.GPL-2.0.txt
+  https://github.com/facebook/zstd
+
+--------------------------------------------------------------------------
+Obtaining corresponding source
+--------------------------------------------------------------------------
+GameMaster does not modify any component in this bundle. The assembly
+script (scripts/assemble-steam-runtime.sh in the GameMaster repository)
+records the exact upstream archives and their SHA-256 digests. For source
+requests regarding this bundle, see the upstream URLs above or open an
+issue at https://github.com/MatrixReligio/GameMaster.

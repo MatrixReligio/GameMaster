@@ -56,6 +56,10 @@ struct RuntimeManifestTests {
         let sika = try #require(manifest.entries.first { $0.id == "sikarugir-10.0-6-dxmt-0.80" })
         #expect(sika.sha256.count == 64)
         #expect(sika.url.host() == "github.com")
+        // runtime-assets-2 is the re-assembled bundle that carries the
+        // license texts and THIRD-PARTY-NOTICES for its LGPL/open-source
+        // binaries; earlier assets shipped none.
+        #expect(sika.url.path().contains("runtime-assets-2"))
         #expect(sika.wineBinaryRelativePath == "wswine.bundle/bin/wine")
         #expect(sika.bundledGPTKVersion == nil)
         #expect(sika.bundledDXMTVersion == "0.80")
