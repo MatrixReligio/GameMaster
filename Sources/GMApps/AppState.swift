@@ -72,6 +72,12 @@ public final class AppState {
         )
     }
 
+    /// A nonzero exit inside this window after Play means the program died on
+    /// startup (missing DLL, bad path) and is reported; after it, a nonzero
+    /// code is a game quitting with junk status and is ignored. Injectable so
+    /// tests don't wait out real seconds.
+    private let launchFailureWindowSeconds: TimeInterval
+
     /// `runner` launches wine; `systemToolRunner` (defaults to `runner`)
     /// launches tar/ditto/xattr — tests fake wine while keeping real tools.
     public init(
@@ -81,10 +87,12 @@ public final class AppState {
         mounter: any DiskImageMounting,
         manifest: RuntimeManifest,
         detector: GPTKDetector = GPTKDetector(),
-        systemToolRunner: (any ProcessRunning)? = nil
+        systemToolRunner: (any ProcessRunning)? = nil,
+        launchFailureWindowSeconds: TimeInterval = 10
     ) {
         self.manifest = manifest
         self.runner = runner
+        self.launchFailureWindowSeconds = launchFailureWindowSeconds
         let toolRunner = systemToolRunner ?? runner
         gptkDetector = detector
         catalog = (try? InstallerCatalog.bundled()) ?? InstallerCatalog(entries: [])
@@ -338,7 +346,14 @@ public final class AppState {
             // `start /wait` returns only when the program's process fully exits —
             // for Steam that's after its (slow) shutdown, which the "Closing…"
             // state covers.
-            _ = try await launcher.launch(program, in: bottle)
+            let launchedAt = Date()
+            let result = try await launcher.launch(program, in: bottle)
+            // Died on startup → tell the user. A nonzero exit after a real
+            // session is a game quitting with a junk status code — ignore it.
+            if result.exitCode != 0,
+               Date().timeIntervalSince(launchedAt) < launchFailureWindowSeconds {
+                report(LaunchError.commandFailed(command: program.name, exitCode: result.exitCode))
+            }
         } catch {
             report(error)
         }
@@ -434,7 +449,15 @@ public final class AppState {
 
     public func runExe(_ exe: URL, in bottle: Bottle) async {
         do {
-            _ = try await launcher.run(exe: exe, arguments: [], in: bottle)
+            // Fire-and-forget: the result is wine's `start` helper, which
+            // exits nonzero exactly when the program could not be launched.
+            let result = try await launcher.run(exe: exe, arguments: [], in: bottle)
+            if result.exitCode != 0 {
+                report(LaunchError.commandFailed(
+                    command: exe.lastPathComponent,
+                    exitCode: result.exitCode
+                ))
+            }
         } catch {
             report(error)
         }

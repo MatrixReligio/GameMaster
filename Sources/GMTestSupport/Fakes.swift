@@ -20,6 +20,7 @@ public final class FakeRunner: ProcessRunning, Sendable {
         var invocations: [Invocation] = []
         var stdoutScripts: [[String]]
         var exitCode: Int32
+        var delayNanoseconds: UInt64
     }
 
     private let state: Mutex<State>
@@ -29,9 +30,16 @@ public final class FakeRunner: ProcessRunning, Sendable {
     }
 
     /// Each element of `stdoutScripts` is consumed by one `run` call, in order;
-    /// once exhausted, calls produce no output.
-    public init(stdoutScripts: [[String]] = [], exitCode: Int32 = 0) {
-        state = Mutex(State(stdoutScripts: stdoutScripts, exitCode: exitCode))
+    /// once exhausted, calls produce no output. `delayNanoseconds` makes every
+    /// run call take that long — for tests that care how long a process lived.
+    public init(stdoutScripts: [[String]] = [], exitCode: Int32 = 0, delayNanoseconds: UInt64 = 0) {
+        state = Mutex(State(stdoutScripts: stdoutScripts, exitCode: exitCode, delayNanoseconds: delayNanoseconds))
+    }
+
+    /// Changes the exit code for subsequent run calls (e.g. healthy setup,
+    /// then a failing launch).
+    public func setExitCode(_ code: Int32) {
+        state.withLock { $0.exitCode = code }
     }
 
     @discardableResult
@@ -42,14 +50,17 @@ public final class FakeRunner: ProcessRunning, Sendable {
         currentDirectory _: URL?,
         outputLine: (@Sendable (String) -> Void)?
     ) async throws -> ProcessResult {
-        let (script, code) = state.withLock { state -> ([String], Int32) in
+        let (script, code, delay) = state.withLock { state -> ([String], Int32, UInt64) in
             state.invocations.append(Invocation(
                 executable: executable.path,
                 arguments: arguments,
                 environment: environment
             ))
             let script = state.stdoutScripts.isEmpty ? [] : state.stdoutScripts.removeFirst()
-            return (script, state.exitCode)
+            return (script, state.exitCode, state.delayNanoseconds)
+        }
+        if delay > 0 {
+            try await Task.sleep(nanoseconds: delay)
         }
         for line in script {
             outputLine?(line)

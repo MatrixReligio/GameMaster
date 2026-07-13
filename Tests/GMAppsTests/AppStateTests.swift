@@ -461,6 +461,70 @@ struct AppStateTests {
         }
     }
 
+    /// A program that dies right after launch (missing DLL, bad path, crashed
+    /// loader) must surface an error — not just flick the card back to idle
+    /// with no explanation.
+    @Test func launchReportsQuickNonzeroExit() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = FakeRunner()
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: runner)
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+
+        runner.setExitCode(1)
+        state.lastErrorMessage = nil
+        await state.launch(program: Program(name: "P", windowsPath: "C:\\p.exe"), in: bottle)
+        #expect(state.lastErrorMessage != nil)
+    }
+
+    /// A NONZERO exit after a long session is normal for games (many return
+    /// junk codes on quit) and must NOT produce an error.
+    @Test func launchIgnoresNonzeroExitAfterLongRun() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        // Every wine call takes 300 ms — longer than the injected 0.1 s window.
+        let runner = FakeRunner(delayNanoseconds: 300_000_000)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner(),
+            launchFailureWindowSeconds: 0.1
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+
+        runner.setExitCode(3)
+        state.lastErrorMessage = nil
+        await state.launch(program: Program(name: "P", windowsPath: "C:\\p.exe"), in: bottle)
+        #expect(state.lastErrorMessage == nil)
+    }
+
+    /// Run Once launches fire-and-forget through wine's `start` helper — a
+    /// nonzero helper exit means the program never launched. Tell the user.
+    @Test func runExeReportsHelperFailure() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = FakeRunner()
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: runner)
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+
+        runner.setExitCode(2)
+        state.lastErrorMessage = nil
+        await state.runExe(dir.appendingPathComponent("game.exe"), in: bottle)
+        #expect(state.lastErrorMessage != nil)
+    }
+
     @Test func launchAndStopDelegateToWine() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

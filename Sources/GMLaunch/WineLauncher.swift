@@ -145,6 +145,10 @@ public struct WineLauncher: Sendable {
     /// `/F` sends WM_CLOSE — the same as clicking the window's close button —
     /// so the program can save state or show its own confirmation dialog.
     /// `stopAll` remains the hard kill for stuck processes.
+    ///
+    /// A nonzero taskkill exit is deliberately not surfaced: it means the
+    /// process was already gone (the common case) and the card resolves via
+    /// the launch call returning; a stuck program still has Force Stop All.
     public func taskkill(imageName: String, in bottle: Bottle) async throws {
         let context = try await context(for: bottle)
         _ = try await runner.run(
