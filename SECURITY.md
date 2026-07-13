@@ -34,10 +34,14 @@ initial email and we'll arrange a key.
 
 ## Design principles that limit attack surface
 
-- **No proprietary redistribution.** GameMaster never bundles Apple's D3DMetal
-  or other proprietary components; the graphics layer is imported by the user
-  from Apple's own disk image and stays on the user's machine.
-- **Verified downloads.** The Wine runtime is pinned to an exact URL and
+- **No proprietary re-hosting.** This repository and GameMaster's own release
+  assets contain no Apple proprietary components. The default runtime is a
+  community Game Porting Toolkit build downloaded from its own project's
+  releases (which includes Apple's D3DMetal evaluation libraries as that
+  project packages them); optional D3DMetal updates are imported from Apple's
+  own disk image, are verified to be signed by Apple before any file is
+  copied, and stay on the user's machine.
+- **Verified downloads.** Every runtime download is pinned to an exact URL and
   verified against a SHA-256 digest before it is unpacked and executed.
 - **No telemetry, no account, no server.** GameMaster has no analytics and
   makes no network calls except downloading the runtime you asked for and

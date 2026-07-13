@@ -12,24 +12,59 @@ Sparkle (https://sparkle-project.org)
   build time; not vendored in this repository.
 
 Wine (https://www.winehq.org)
-  GameMaster downloads a pre-built, open-source Wine runtime at first run.
-  Wine is licensed under the GNU Lesser General Public License (LGPL) v2.1 or
-  later. GameMaster does not modify or redistribute Wine within this repository;
-  it downloads an unmodified upstream build and its source is available from the
-  respective distributor. The default runtime is the community "Game Porting
-  Toolkit" build maintained by Gcenx
-  (https://github.com/Gcenx/game-porting-toolkit).
+  GameMaster downloads pre-built Wine runtimes at first run and when an app
+  needs a different one. Wine is licensed under the GNU Lesser General Public
+  License (LGPL) v2.1 or later. GameMaster does not modify Wine; every runtime
+  download is pinned to an exact URL and SHA-256 digest.
+
+Default runtime: "Game Porting Toolkit" community build by Gcenx
+  (https://github.com/Gcenx/game-porting-toolkit)
+  Downloaded directly from that project's GitHub releases. NOTE: this build
+  ships with Apple's proprietary D3DMetal evaluation libraries included, as
+  packaged and distributed by that project — see the Apple section below.
+  GameMaster does not re-host this archive.
+
+Steam run runtime: GameMaster runtime asset
+  (gamemaster-runtime-sikarugir-*.tar.xz on this project's GitHub releases)
+  An aggregate assembled by scripts/assemble-steam-runtime.sh from three
+  unmodified, SHA-256-pinned upstream archives:
+  - Sikarugir Wine engine (https://github.com/Sikarugir-App/Engines) — a
+    CrossOver-derived Wine build, LGPL v2.1 or later. Sources available from
+    the Sikarugir project and https://www.codeweavers.com/crossover/source.
+  - Sikarugir Wrapper Template support dylibs
+    (https://github.com/Sikarugir-App/Wrapper) — runtime libraries the engine
+    links against (e.g. libinotify); licenses of the respective upstreams.
+  - DXMT (https://github.com/3Shain/dxmt) — Metal-based implementation of
+    Direct3D 10/11 for macOS/Wine. Copyright Feifan He for CodeWeavers,
+    LGPL v2.1 or later.
+  The assembly script documents the exact byte-for-byte inputs; no binary is
+  modified during assembly.
+
+steamwebhelper wrapper (Tools/SteamWebHelperWrapper)
+  The approach of wrapping steamwebhelper.exe to inject CEF compatibility
+  flags is adapted from the open-source Vineport project (MIT License);
+  the wrapper here is an independent reimplementation.
 
 --------------------------------------------------------------------------------
 Apple Game Porting Toolkit / D3DMetal
 --------------------------------------------------------------------------------
 
-GameMaster does NOT bundle, redistribute, or re-host Apple's D3DMetal libraries
-or any part of the Game Porting Toolkit "Evaluation environment for Windows
-games". Those components are proprietary to Apple Inc. and are subject to
-Apple's own license terms. When a user chooses to update their graphics layer,
-GameMaster imports the libraries from a disk image the user obtains directly
-from Apple; the libraries remain solely on the user's machine.
+Apple's D3DMetal libraries and the Game Porting Toolkit "Evaluation
+environment for Windows games" are proprietary to Apple Inc. and subject to
+Apple's own license terms.
+
+GameMaster does NOT re-host, mirror, or bundle these libraries in this
+repository or in its own release assets. Two paths can place them on a user's
+machine:
+
+1. The default runtime above is a community build that includes them as
+   distributed by the Gcenx project; GameMaster downloads that archive from
+   the project's own releases.
+2. The user may optionally import a newer version from the "Evaluation
+   environment for Windows games" disk image they download from
+   developer.apple.com themselves. GameMaster verifies the payload is signed
+   by Apple before importing; the libraries remain solely on the user's
+   machine.
 
 --------------------------------------------------------------------------------
 Trademarks
