@@ -268,21 +268,35 @@ public final class AppState {
     public func createBottle(name: String) async {
         creatingBottle = true
         defer { creatingBottle = false }
+        let bottle: Bottle
         do {
-            var bottle = try await bottleStore.create(name: name, runtimeID: manifest.defaultRuntimeID)
+            bottle = try await bottleStore.create(name: name, runtimeID: manifest.defaultRuntimeID)
+        } catch {
+            report(error)
+            return
+        }
+        do {
+            var configured = bottle
             // Seed hardware-tuned graphics defaults before the first boot, so the
             // Retina registry the init writes already matches the recommendation.
+            let runtimeID = configured.runtimeID ?? manifest.defaultRuntimeID
             if let hardware = hardwareProfileProvider(),
-               let descriptor = try? await runtimeStore.descriptor(id: bottle.runtimeID ?? manifest.defaultRuntimeID) {
-                bottle.settings = PerformanceAdvisor.recommend(
-                    for: hardware, runtime: descriptor, base: bottle.settings
+               let descriptor = try? await runtimeStore.descriptor(id: runtimeID) {
+                configured.settings = PerformanceAdvisor.recommend(
+                    for: hardware, runtime: descriptor, base: configured.settings
                 )
-                try await bottleStore.save(bottle)
+                try await bottleStore.save(configured)
             }
-            try await launcher.initializeBottle(bottle)
+            try await launcher.initializeBottle(configured)
             await refresh()
-            selectedBottleID = bottle.id
+            selectedBottleID = configured.id
         } catch {
+            // The bottle is already on disk but its first boot (or the pre-boot
+            // save) failed. Roll it back so it can't resurface on the next
+            // refresh as a broken ghost: stop any wineserver it spawned — scoped
+            // to this new bottle's own prefix — then delete it.
+            try? await launcher.stopAll(in: bottle)
+            try? await bottleStore.delete(id: bottle.id)
             report(error)
         }
     }

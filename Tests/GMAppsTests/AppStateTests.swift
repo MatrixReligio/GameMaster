@@ -206,6 +206,28 @@ struct AppStateTests {
         #expect(bottle.settings.retinaMode == true)
     }
 
+    /// A bottle whose first boot fails (wineboot errors) must be rolled back,
+    /// not left half-initialized on disk. Otherwise the failed create looks
+    /// like nothing happened in the UI, yet the bottle resurfaces on the next
+    /// refresh or app restart as a broken ghost.
+    @Test func createBottleRollsBackWhenInitializationFails() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = FakeRunner()
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: runner)
+        await state.installDefaultRuntime()
+
+        runner.setExitCode(1) // wineboot --init fails on first boot
+        await state.createBottle(name: "Doomed")
+        #expect(state.lastErrorMessage != nil)
+
+        // Read fresh from disk: the half-created bottle must be gone, so a
+        // later refresh (or restart) can't resurrect it.
+        await state.refresh()
+        #expect(state.bottles.isEmpty)
+    }
+
     /// The settings sheet's "Recommend" button asks for settings tuned to this
     /// Mac; it returns a recommendation built from the bottle's current settings
     /// so unrelated fields are preserved, and callers apply it to their draft.
