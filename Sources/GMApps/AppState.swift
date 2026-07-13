@@ -31,6 +31,10 @@ public final class AppState {
     /// Program currently being migrated to its run runtime on launch (so its card
     /// can show download progress instead of a plain "Running" state).
     public private(set) var migratingProgramID: UUID?
+    /// Bottles with a long-running install/migration writing into them.
+    /// Deleting one mid-install would race the installer's writes, so delete
+    /// is refused while a bottle is in this set.
+    public private(set) var busyBottleIDs: Set<UUID> = []
     public var lastErrorMessage: String?
     public var selectedBottleID: UUID?
 
@@ -115,7 +119,13 @@ public final class AppState {
 
     public func refresh() async {
         do {
-            bottles = try await bottleStore.list()
+            let listing = try await bottleStore.listing()
+            bottles = listing.bottles
+            if !listing.corruptFiles.isEmpty {
+                lastErrorMessage = String(
+                    localized: "\(listing.corruptFiles.count) bottle(s) have unreadable metadata and are hidden. Their files remain on disk untouched."
+                )
+            }
             if case .installing = runtimeStatus {
                 // Keep showing progress; installer updates status itself.
             } else if let descriptor = try await runtimeStore.descriptor(id: manifest.defaultRuntimeID) {
@@ -190,6 +200,12 @@ public final class AppState {
     }
 
     public func deleteBottle(_ bottle: Bottle) async {
+        guard !busyBottleIDs.contains(bottle.id) else {
+            lastErrorMessage = String(
+                localized: "This bottle is being installed into. Wait for the install to finish, then delete it."
+            )
+            return
+        }
         do {
             try? await launcher.stopAll(in: bottle)
             try await bottleStore.delete(id: bottle.id)
@@ -199,9 +215,15 @@ public final class AppState {
         }
     }
 
-    public func updateBottle(_ bottle: Bottle) async {
+    /// Saves the settings sheet's fields — name and settings ONLY — on the
+    /// bottle's current state, so a sheet left open through an install can't
+    /// clobber the programs/runtime the install registered.
+    public func updateBottle(id: UUID, name: String, settings: BottleSettings) async {
         do {
-            try await bottleStore.save(bottle)
+            try await bottleStore.update(id: id) { bottle in
+                bottle.name = name
+                bottle.settings = settings
+            }
             await refresh()
         } catch {
             report(error)
@@ -220,6 +242,8 @@ public final class AppState {
         appInstallToken += 1
         let token = appInstallToken
         installProgress = (.downloading, 0)
+        busyBottleIDs.insert(bottle.id)
+        defer { busyBottleIDs.remove(bottle.id) }
         do {
             // The app may switch the bottle to a different run runtime (Steam
             // bootstraps under GPTK but runs under a newer Wine); fetch it first
@@ -345,10 +369,12 @@ public final class AppState {
         let token = appInstallToken
         migratingProgramID = program.id
         installProgress = (.downloading, 0)
+        busyBottleIDs.insert(bottle.id)
         defer {
             appInstallToken += 1
             migratingProgramID = nil
             installProgress = nil
+            busyBottleIDs.remove(bottle.id)
         }
         try await ensureRunRuntimeInstalled(for: entry, token: token)
         let migrated = try await appInstaller.migrate(entry, in: bottle) { [weak self] phase, fraction in

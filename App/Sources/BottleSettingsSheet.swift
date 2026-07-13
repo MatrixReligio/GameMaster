@@ -151,9 +151,14 @@ struct BottleSettingsSheet: View {
                 String(parts[1]).trimmingCharacters(in: .whitespaces)
         }
         draft.settings.extraEnvironment = env
-        let updated = draft
+        // Field-level save: the sheet owns name + settings only. A whole-Bottle
+        // save would clobber programs/runtime changes (e.g. a finishing install)
+        // made while the sheet was open on its stale draft.
+        let id = draft.id
+        let name = draft.name
+        let settings = draft.settings
         Task {
-            await appState.updateBottle(updated)
+            await appState.updateBottle(id: id, name: name, settings: settings)
             dismiss()
         }
     }

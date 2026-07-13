@@ -199,6 +199,83 @@ struct AppInstallerTests {
         #expect(phases.withLock { $0 } == [.downloading, .installing, .configuring, .done])
     }
 
+    /// The install runs for minutes holding a Bottle value from its start; a
+    /// rename (or any settings change) saved mid-install must survive the
+    /// installer's final write.
+    @Test func installPreservesRenameMadeWhileInstalling() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let fixture = env.root.appendingPathComponent("fixture-installer.exe")
+        try Data("MZ".utf8).write(to: fixture)
+
+        /// Renames the bottle during the download phase — the user editing
+        /// the bottle while the installer runs.
+        struct RenamingDownloader: Downloading {
+            var fixture: URL
+            var store: BottleStore
+            var bottleID: UUID
+
+            func download(
+                from _: URL,
+                to destination: URL,
+                progress: (@Sendable (Double) -> Void)?
+            ) async throws {
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try? FileManager.default.removeItem(at: destination)
+                try FileManager.default.copyItem(at: fixture, to: destination)
+                _ = try await store.update(id: bottleID) { $0.name = "Renamed" }
+                progress?(1.0)
+            }
+        }
+
+        let installer = AppInstaller(
+            downloader: RenamingDownloader(fixture: fixture, store: env.bottleStore, bottleID: env.bottle.id),
+            launcher: env.launcher(),
+            bottleStore: env.bottleStore
+        )
+        let steam = try #require(InstallerCatalog.bundled().entries.first { $0.id == "steam" })
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        try writeBootstrappedSteam(in: prefix)
+
+        _ = try await installer.install(steam, into: env.bottle, progress: nil)
+
+        let final = try #require(await env.bottleStore.list().first)
+        #expect(final.name == "Renamed")
+        #expect(final.programs.count == 1)
+        #expect(final.runtimeID == "sikarugir-10.0-6-dxmt-0.80")
+    }
+
+    /// Same lost-update through the migration path: migrate() must apply its
+    /// field changes on the bottle's current state, not the caller's snapshot.
+    @Test func migratePreservesRenameMadeMeanwhile() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let fixture = env.root.appendingPathComponent("fixture-installer.exe")
+        try Data("MZ".utf8).write(to: fixture)
+        let installer = AppInstaller(
+            downloader: FakeDownloader(fixture: fixture),
+            launcher: env.launcher(),
+            bottleStore: env.bottleStore
+        )
+        let steam = try #require(InstallerCatalog.bundled().entries.first { $0.id == "steam" })
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        try writeBootstrappedSteam(in: prefix)
+
+        // The caller launches migrate with a snapshot that predates a rename.
+        let stale = env.bottle
+        _ = try await env.bottleStore.update(id: stale.id) { $0.name = "Renamed" }
+
+        _ = try await installer.migrate(steam, in: stale, progress: nil)
+
+        let final = try #require(await env.bottleStore.list().first)
+        #expect(final.name == "Renamed")
+        #expect(final.runtimeID == "sikarugir-10.0-6-dxmt-0.80")
+        #expect(final.settings.sync == .msync)
+    }
+
     @Test func reinstallReplacesExistingProgramInsteadOfDuplicating() async throws {
         let env = try await makeEnv()
         defer { try? FileManager.default.removeItem(at: env.root) }

@@ -60,6 +60,86 @@ struct BottleStoreTests {
         #expect(listed.count == 1)
         #expect(listed.first?.name == "OK")
     }
+
+    /// Corrupt metadata must not vanish silently: the listing names the bad
+    /// file so the UI can tell the user (the bottle's prefix — the games —
+    /// is still on disk and recoverable).
+    @Test func listingReportsCorruptEntries() async throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = BottleStore(root: root)
+        _ = try await store.create(name: "OK", runtimeID: nil)
+
+        let corrupt = root.appendingPathComponent("bottles/corrupt", isDirectory: true)
+        try FileManager.default.createDirectory(at: corrupt, withIntermediateDirectories: true)
+        let badFile = corrupt.appendingPathComponent("bottle.json")
+        try Data("not json".utf8).write(to: badFile)
+
+        let listing = try await store.listing()
+        #expect(listing.bottles.count == 1)
+        // /var vs /private/var: compare with symlinks resolved.
+        #expect(listing.corruptFiles.map { $0.resolvingSymlinksInPath() }
+            == [badFile.resolvingSymlinksInPath()])
+        // The corrupt file is reported, never deleted.
+        #expect(FileManager.default.fileExists(atPath: badFile.path))
+    }
+
+    /// A long install must not clobber changes made while it ran: `update`
+    /// reads the current state inside the actor, so a rename saved mid-install
+    /// and the installer's own field changes both survive.
+    @Test func updateAppliesChangesOnFreshStateNotStaleSnapshot() async throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = BottleStore(root: root)
+        let created = try await store.create(name: "游戏瓶", runtimeID: "gptk")
+
+        // User renames the bottle while an installer still holds `created`.
+        _ = try await store.update(id: created.id) { $0.name = "Renamed" }
+
+        // Installer finishes with only ITS fields — from the stale snapshot's
+        // point of view — via update, not a whole-value save.
+        let program = Program(name: "Steam", windowsPath: "C:\\steam.exe")
+        let final = try await store.update(id: created.id) { bottle in
+            bottle.runtimeID = "sikarugir"
+            bottle.programs.append(program)
+        }
+
+        #expect(final.name == "Renamed")
+        #expect(final.runtimeID == "sikarugir")
+        #expect(final.programs == [program])
+        #expect(try await store.list() == [final])
+    }
+
+    /// Deleting a bottle mid-install must not let the install's final write
+    /// resurrect it as a ghost (bottle.json without a live prefix).
+    @Test func updateThrowsForDeletedBottleAndDoesNotRecreate() async throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = BottleStore(root: root)
+        let bottle = try await store.create(name: "Doomed", runtimeID: nil)
+        try await store.delete(id: bottle.id)
+
+        await #expect(throws: BottleError.bottleNotFound(bottle.id)) {
+            _ = try await store.update(id: bottle.id) { $0.name = "Ghost" }
+        }
+        let dir = await store.directory(of: bottle)
+        #expect(!FileManager.default.fileExists(atPath: dir.path))
+        #expect(try await store.list().isEmpty)
+    }
+
+    @Test func saveRefusesToRecreateDeletedBottle() async throws {
+        let root = try tempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = BottleStore(root: root)
+        let bottle = try await store.create(name: "Doomed", runtimeID: nil)
+        try await store.delete(id: bottle.id)
+
+        await #expect(throws: BottleError.bottleNotFound(bottle.id)) {
+            try await store.save(bottle)
+        }
+        let dir = await store.directory(of: bottle)
+        #expect(!FileManager.default.fileExists(atPath: dir.path))
+    }
 }
 
 @Suite("EnvironmentComposer")

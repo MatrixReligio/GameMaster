@@ -122,16 +122,24 @@ public struct AppInstaller: Sendable {
             programID: program.id,
             bottleDirectory: bottleDirectory
         )
-        var updated = bottle
-        // Switch the bottle to the run runtime (Steam bootstraps under GPTK but
-        // runs under a newer Wine whose CEF handshake actually completes).
-        if let runRuntimeID = entry.runRuntimeID {
-            updated.runtimeID = runRuntimeID
+        // Apply only THIS install's fields on the bottle's current state:
+        // the install ran for minutes, and a whole-value save of the snapshot
+        // taken at its start would drop every change made in between (rename,
+        // settings). update() also throws instead of resurrecting a bottle
+        // that was deleted mid-install.
+        let runRuntimeID = entry.runRuntimeID
+        let runTuning = entry.runTuning
+        let installedWindowsPath = entry.installedWindowsPath
+        try await bottleStore.update(id: bottle.id) { current in
+            // Switch the bottle to the run runtime (Steam bootstraps under GPTK
+            // but runs under a newer Wine whose CEF handshake completes).
+            if let runRuntimeID {
+                current.runtimeID = runRuntimeID
+            }
+            Self.applyRunTuning(runTuning, to: &current)
+            current.programs.removeAll { $0.windowsPath == installedWindowsPath }
+            current.programs.append(program)
         }
-        Self.applyRunTuning(entry.runTuning, to: &updated)
-        updated.programs.removeAll { $0.windowsPath == entry.installedWindowsPath }
-        updated.programs.append(program)
-        try await bottleStore.save(updated)
 
         progress?(.done, 1)
         return program
@@ -150,12 +158,15 @@ public struct AppInstaller: Sendable {
     ) async throws -> Bottle {
         let prefix = await bottleStore.prefixDirectory(of: bottle)
         try await bootstrapAndInstallWrapper(entry: entry, bottle: bottle, prefix: prefix, progress: progress)
-        var updated = bottle
-        if let runRuntimeID = entry.runRuntimeID {
-            updated.runtimeID = runRuntimeID
+        // Field-level update on current state — see install() for why.
+        let runRuntimeID = entry.runRuntimeID
+        let runTuning = entry.runTuning
+        let updated = try await bottleStore.update(id: bottle.id) { current in
+            if let runRuntimeID {
+                current.runtimeID = runRuntimeID
+            }
+            Self.applyRunTuning(runTuning, to: &current)
         }
-        Self.applyRunTuning(entry.runTuning, to: &updated)
-        try await bottleStore.save(updated)
         progress?(.done, 1)
         return updated
     }

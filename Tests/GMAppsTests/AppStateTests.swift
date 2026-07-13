@@ -4,6 +4,7 @@ import GMModel
 import GMRuntime
 import GMSystem
 import GMTestSupport
+import Synchronization
 import Testing
 @testable import GMApps
 
@@ -292,6 +293,126 @@ struct AppStateTests {
         #expect(FileManager.default.fileExists(atPath: cef.appendingPathComponent("steamwebhelper_real.exe").path))
         // No longer migrating after completion.
         #expect(state.migratingProgramID == nil)
+    }
+
+    /// Deleting a bottle while an install is writing into it would leave a
+    /// half-installed ghost; the delete must be refused until the install ends.
+    @Test func deleteBottleRefusedWhileInstalling() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+
+        /// Blocks the Steam installer download until released; everything
+        /// else (the runtime tarball) downloads immediately.
+        final class GatedDownloader: Downloading, @unchecked Sendable {
+            let fixture: URL
+            private let released = Mutex<Bool>(false)
+            init(fixture: URL) { self.fixture = fixture }
+            func release() { released.withLock { $0 = true } }
+
+            func download(
+                from url: URL,
+                to destination: URL,
+                progress: (@Sendable (Double) -> Void)?
+            ) async throws {
+                if url.lastPathComponent == "SteamSetup.exe" {
+                    while !released.withLock({ $0 }) {
+                        try await Task.sleep(nanoseconds: 10_000_000)
+                    }
+                }
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try? FileManager.default.removeItem(at: destination)
+                try FileManager.default.copyItem(at: fixture, to: destination)
+                progress?(1.0)
+            }
+        }
+
+        let downloader = GatedDownloader(fixture: fixture)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: downloader,
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        let steamDir = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam")
+        try FileManager.default.createDirectory(at: steamDir, withIntermediateDirectories: true)
+        try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
+        try Data(count: 10_000_001).write(to: steamDir.appendingPathComponent("steamui.dll"))
+
+        let install = Task { await state.installCatalogApp(id: "steam", into: bottle) }
+        while !state.busyBottleIDs.contains(bottle.id) {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        await state.deleteBottle(bottle)
+        #expect(state.lastErrorMessage != nil)
+        #expect(state.bottles.contains { $0.id == bottle.id })
+
+        downloader.release()
+        await install.value
+        #expect(!state.busyBottleIDs.contains(bottle.id))
+
+        // After the install finishes, deleting works again.
+        state.lastErrorMessage = nil
+        let finished = try #require(state.bottles.first { $0.id == bottle.id })
+        await state.deleteBottle(finished)
+        #expect(!state.bottles.contains { $0.id == bottle.id })
+    }
+
+    /// A corrupt bottle.json must not make the bottle vanish silently — the
+    /// user is told, and the file stays on disk for recovery.
+    @Test func refreshReportsCorruptBottleMetadata() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: FakeRunner())
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "OK")
+
+        let corrupt = dir.appendingPathComponent("approot/bottles/corrupt")
+        try FileManager.default.createDirectory(at: corrupt, withIntermediateDirectories: true)
+        try Data("not json".utf8).write(to: corrupt.appendingPathComponent("bottle.json"))
+
+        state.lastErrorMessage = nil
+        await state.refresh()
+        #expect(state.bottles.count == 1)
+        #expect(state.lastErrorMessage != nil)
+        #expect(FileManager.default.fileExists(atPath: corrupt.appendingPathComponent("bottle.json").path))
+    }
+
+    /// The settings sheet owns name + settings only. Saving them from a stale
+    /// draft must not clobber programs/runtime added while the sheet was open.
+    @Test func updateBottleSettingsDoesNotClobberConcurrentChanges() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: FakeRunner())
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let draft = try #require(state.bottles.first) // sheet opens on this
+
+        // While the sheet is open, an install registers a program.
+        let store = BottleStore(root: dir.appendingPathComponent("approot"))
+        let program = Program(name: "Steam", windowsPath: "C:\\steam.exe")
+        _ = try await store.update(id: draft.id) { $0.programs.append(program) }
+
+        var settings = draft.settings
+        settings.metalHUD = true
+        await state.updateBottle(id: draft.id, name: "Renamed", settings: settings)
+
+        let final = try #require(state.bottles.first)
+        #expect(final.name == "Renamed")
+        #expect(final.settings.metalHUD)
+        #expect(final.programs == [program]) // survived the sheet save
     }
 
     @Test func errorsSurfaceAsMessages() async throws {
