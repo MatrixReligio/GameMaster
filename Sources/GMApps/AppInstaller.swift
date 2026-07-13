@@ -230,11 +230,15 @@ public struct AppInstaller: Sendable {
             return
         }
 
+        // The failure log is append-only across attempts: failures recorded by
+        // a previous install run must not poison this one. Take the count
+        // BEFORE launching the client and only new lines count from here on.
+        let failureLog = spec.failureLogWindowsPath.map { WindowsPath.toUnix($0, prefix: prefix) }
+        let baselineFailures = Self.failureCount(in: failureLog, patterns: spec.failureLogPatterns)
+
         // wait:false — `wine start /unix` returns while Steam keeps running.
         let bootstrapArguments = spec.launchArguments ?? entry.launchArguments
         _ = try? await launcher.run(exe: exe, arguments: bootstrapArguments, in: bottle, wait: false)
-
-        let failureLog = spec.failureLogWindowsPath.map { WindowsPath.toUnix($0, prefix: prefix) }
         let deadline = Date().addingTimeInterval(TimeInterval(spec.timeoutSeconds))
         var ready = false
         var offline = false
@@ -255,8 +259,10 @@ public struct AppInstaller: Sendable {
             // attempt (e.g. Steam's "Download failed" when its CDN is
             // unreachable). Retry immediately — CDN hiccups are transient —
             // and once the relaunch budget is spent, fail fast with a network
-            // error instead of sitting out the full timeout.
+            // error instead of sitting out the full timeout. Only failures
+            // NEW since this bootstrap started count (see baselineFailures).
             let failures = Self.failureCount(in: failureLog, patterns: spec.failureLogPatterns)
+                - baselineFailures
             if failures > Self.maxBootstrapRelaunches {
                 offline = true
                 break
@@ -298,8 +304,10 @@ public struct AppInstaller: Sendable {
         guard ready else { throw InstallError.bootstrapTimedOut(name: entry.name) }
     }
 
-    /// Counts failed download attempts recorded in the bootstrapper's log —
-    /// the log is append-only across relaunches, so the count only grows.
+    /// Counts failed download attempts recorded in the bootstrapper's log.
+    /// The log is append-only across relaunches AND across install attempts,
+    /// so callers must diff against a baseline taken at bootstrap start —
+    /// the raw total includes failures from previous runs.
     private static func failureCount(in log: URL?, patterns: [String]?) -> Int {
         guard let log, let patterns, !patterns.isEmpty,
               let content = try? String(contentsOf: log, encoding: .utf8) else { return 0 }

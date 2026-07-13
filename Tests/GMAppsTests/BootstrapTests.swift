@@ -150,9 +150,9 @@ struct AppInstallerBootstrapTests {
     }
 
     /// The bootstrapper's log reports each failed download ("Steam needs to be
-    /// online to update" when its CDN is unreachable). Once the log shows more
-    /// failures than the relaunch budget, the install must fail fast with a
-    /// network error — not sit out the remaining 15-minute timeout.
+    /// online to update" when its CDN is unreachable). Once THIS bootstrap has
+    /// produced more failures than the relaunch budget, the install must fail
+    /// fast with a network error — not sit out the 15-minute timeout.
     @Test func bootstrapFailsFastWhenLogReportsOffline() async throws {
         let env = try await makeEnv()
         defer { try? FileManager.default.removeItem(at: env.root) }
@@ -168,10 +168,17 @@ struct AppInstallerBootstrapTests {
         let logsDir = steamDir.appendingPathComponent("logs")
         try FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
         try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
-        // Four failed attempts already on record — more than the relaunch budget.
+        // The launched client records four failed attempts shortly after this
+        // bootstrap starts — more NEW failures than the relaunch budget. The
+        // write lands at ~4 s: after the bootstrap's baseline capture (which
+        // follows the 2 s pre-install settle), before the first 3 s poll.
         let failedAttempt = "[2026-07-12] Error: Steam needs to be online to update. Please confirm.\n"
-        try String(repeating: failedAttempt, count: 4)
-            .write(to: logsDir.appendingPathComponent("bootstrap_log.txt"), atomically: true, encoding: .utf8)
+        let logFile = logsDir.appendingPathComponent("bootstrap_log.txt")
+        Task.detached {
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            try? String(repeating: failedAttempt, count: 4)
+                .write(to: logFile, atomically: true, encoding: .utf8)
+        }
 
         let entry = try InstallerCatalog.Entry(
             id: "steam",
@@ -193,8 +200,68 @@ struct AppInstallerBootstrapTests {
         await #expect(throws: InstallError.bootstrapOffline(name: "Steam")) {
             _ = try await installer.install(entry, into: env.bottle, progress: nil)
         }
-        // Failed on the first poll round, nowhere near the 600 s timeout.
+        // Failed on an early poll round, nowhere near the 600 s timeout.
         #expect(Date().timeIntervalSince(started) < 30)
+    }
+
+    /// bootstrap_log.txt is append-only across attempts: failures recorded by
+    /// a PREVIOUS install run must not poison this one. A retry on a healthy
+    /// network has to succeed even with old failure lines on record — only
+    /// lines added after this bootstrap starts may count.
+    @Test func bootstrapIgnoresFailuresFromPreviousAttempts() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let fixture = env.root.appendingPathComponent("installer.exe")
+        try Data("MZ".utf8).write(to: fixture)
+        let installer = AppInstaller(
+            downloader: FakeDownloader(fixture: fixture),
+            launcher: env.launcher(),
+            bottleStore: env.bottleStore
+        )
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let steamDir = steamDirectory(in: prefix)
+        let logsDir = steamDir.appendingPathComponent("logs")
+        try FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
+        // A previous attempt failed four times — over the relaunch budget.
+        let failedAttempt = "[2026-07-12] Error: Steam needs to be online to update. Please confirm.\n"
+        try String(repeating: failedAttempt, count: 4)
+            .write(to: logsDir.appendingPathComponent("bootstrap_log.txt"), atomically: true, encoding: .utf8)
+
+        let entry = try InstallerCatalog.Entry(
+            id: "steam",
+            name: "Steam",
+            downloadURL: #require(URL(string: "https://example/SteamSetup.exe")),
+            installerFileName: "SteamSetup.exe",
+            silentArguments: ["/S"],
+            installedWindowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
+            launchArguments: [],
+            bootstrap: .init(
+                readyWindowsPath: "C:\\Program Files (x86)\\Steam\\steamui.dll",
+                readyMinBytes: 10_000_000,
+                timeoutSeconds: 60,
+                failureLogWindowsPath: "C:\\Program Files (x86)\\Steam\\logs\\bootstrap_log.txt",
+                failureLogPatterns: ["Steam needs to be online to update"]
+            )
+        )
+        // This time the network is fine: the client download completes — but
+        // only after the poll has already run its failure check at least once
+        // (pre-install settle 2 s + first poll 3 s ≈ 5 s), so the stale lines
+        // are actually seen and must be ignored.
+        let dllPath = steamDir.appendingPathComponent("steamui.dll")
+        Task.detached {
+            try? await Task.sleep(nanoseconds: 9_000_000_000)
+            try? Data(count: 10_000_001).write(to: dllPath)
+        }
+        _ = try await installer.install(entry, into: env.bottle, progress: nil)
+
+        // The stale failures caused neither an offline abort nor pointless
+        // relaunch churn: steam.exe was started exactly once.
+        let steamStarts = env.runner.invocations.filter { invocation in
+            invocation.arguments.contains { $0.hasSuffix("steam.exe") }
+                && invocation.arguments.contains("start")
+        }
+        #expect(steamStarts.count == 1)
     }
 
     /// A clean-machine failure mode: Steam's first self-update dies (the user
