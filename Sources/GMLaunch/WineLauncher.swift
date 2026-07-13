@@ -66,18 +66,32 @@ public struct WineLauncher: Sendable {
         guard boot.exitCode == 0 else {
             throw LaunchError.commandFailed(command: "wineboot", exitCode: boot.exitCode)
         }
+        try await applyRetinaRegistry(in: bottle, context: context)
+    }
+
+    /// Writes the Retina/DPI registry tweak for the bottle's CURRENT setting.
+    /// Retina lives in the Wine registry, so toggling it in Bottle Settings
+    /// must call this — saving the JSON alone changes nothing at runtime.
+    public func applyRetinaRegistry(in bottle: Bottle) async throws {
+        try await applyRetinaRegistry(in: bottle, context: context(for: bottle))
+    }
+
+    private func applyRetinaRegistry(in bottle: Bottle, context: Context) async throws {
         let regFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("gamemaster-retina-\(UUID().uuidString).reg")
         try RegistryTweaks.retinaRegContent(enabled: bottle.settings.retinaMode)
             .write(to: regFile, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: regFile) }
-        _ = try await runner.run(
+        let result = try await runner.run(
             executable: context.wineBinary,
             arguments: ["regedit", "/S", regFile.path],
             environment: context.environment,
             currentDirectory: nil,
             outputLine: nil
         )
+        guard result.exitCode == 0 else {
+            throw LaunchError.commandFailed(command: "regedit", exitCode: result.exitCode)
+        }
     }
 
     /// Runs a registered program (windows path resolved inside the prefix).

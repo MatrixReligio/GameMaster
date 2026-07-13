@@ -415,6 +415,37 @@ struct AppStateTests {
         #expect(final.programs == [program]) // survived the sheet save
     }
 
+    /// Retina lives in the Wine registry, written at bottle creation. Toggling
+    /// it later must re-apply the registry tweak — saving JSON alone leaves
+    /// the running environment unchanged (the setting silently did nothing).
+    @Test func updateBottleReappliesRetinaRegistryWhenChanged() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = FakeRunner()
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: runner)
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        #expect(bottle.settings.retinaMode) // default on
+
+        let regeditRuns = { runner.invocations.count { $0.arguments.first == "regedit" } }
+        let before = regeditRuns()
+
+        // Toggle retina → the registry tweak must run again.
+        var settings = bottle.settings
+        settings.retinaMode = false
+        await state.updateBottle(id: bottle.id, name: bottle.name, settings: settings)
+        #expect(state.lastErrorMessage == nil)
+        #expect(regeditRuns() == before + 1)
+
+        // Saving without touching retina must NOT re-run regedit.
+        var unchanged = try #require(state.bottles.first).settings
+        unchanged.metalHUD = true
+        await state.updateBottle(id: bottle.id, name: "Renamed", settings: unchanged)
+        #expect(regeditRuns() == before + 1)
+    }
+
     @Test func errorsSurfaceAsMessages() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
