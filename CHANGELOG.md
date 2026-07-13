@@ -4,6 +4,31 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.8] — 2026-07-13
+
+A follow-up hardening round: the third security review's actionable findings,
+fixed test-first.
+
+### Fixed
+- **Stopping a stubborn program no longer freezes its card.** When a program
+  ignored the close request (a save dialog, a Steam update), the card could
+  stay stuck on a "Closing…" spinner with no button until the program finally
+  exited or you Force Stopped the whole bottle. It now reverts to Running with
+  a working Stop button once the wait times out.
+- **A crash right after installing a runtime can no longer lose it.** The
+  runtime's metadata is now written together with its files in a single
+  atomic step, so an interrupted install can't leave a runtime that reads as
+  "missing" and re-downloads. A hiccup in the startup runtime-recovery pass
+  also no longer blanks the rest of the app's refresh.
+
+### Security
+- **The release build pins XcodeGen.** The tool that generates the project the
+  app is signed from is now downloaded at a fixed version and checksum instead
+  of a floating formula, keeping the signed artifact reproducible.
+- **The Steam runtime download's source is reproducible.** Its release tag now
+  points at the commit that actually produced the archive (with the bundled
+  license texts), rather than an earlier one.
+
 ## [0.3.7] — 2026-07-13
 
 A second hardening round: all nine findings of the follow-up security review,
