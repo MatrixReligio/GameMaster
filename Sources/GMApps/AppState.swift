@@ -87,6 +87,11 @@ public final class AppState {
     /// tests don't wait out real seconds.
     private let launchFailureWindowSeconds: TimeInterval
 
+    /// How long a stop request waits for the bottle's wineserver to actually
+    /// go quiet before concluding the kill didn't take. Injectable so tests
+    /// don't wait out real seconds.
+    private let stopProbeTimeoutSeconds: TimeInterval
+
     /// `runner` launches wine; `systemToolRunner` (defaults to `runner`)
     /// launches tar/ditto/xattr — tests fake wine while keeping real tools.
     public init(
@@ -98,11 +103,13 @@ public final class AppState {
         detector: GPTKDetector = GPTKDetector(),
         systemToolRunner: (any ProcessRunning)? = nil,
         launchFailureWindowSeconds: TimeInterval = 10,
+        stopProbeTimeoutSeconds: TimeInterval = 30,
         activityProbe: any PrefixActivityProbing = WineServerProbe()
     ) {
         self.manifest = manifest
         self.runner = runner
         self.launchFailureWindowSeconds = launchFailureWindowSeconds
+        self.stopProbeTimeoutSeconds = stopProbeTimeoutSeconds
         self.activityProbe = activityProbe
         let toolRunner = systemToolRunner ?? runner
         gptkDetector = detector
@@ -382,6 +389,15 @@ public final class AppState {
 // MARK: - Launching, stopping, and runtime queries
 
 public extension AppState {
+    /// Whether the program should present as running: either this session
+    /// launched it, or the bottle's wineserver is alive from a previous app
+    /// session (games survive GameMaster quitting by design) — after a
+    /// relaunch the per-program IDs are gone, and offering Play on a live
+    /// bottle invites a second instance.
+    func isProgramRunning(_ program: Program, in bottle: Bottle) -> Bool {
+        runningIDs.contains(program.id) || activeBottleIDs.contains(bottle.id)
+    }
+
     func launch(program: Program, in bottle: Bottle) async {
         runningIDs.insert(program.id)
         // "Launching" spans the click until the program's window appears (or a
@@ -499,6 +515,7 @@ public extension AppState {
         } catch {
             report(error)
         }
+        await settleStoppedBottle(bottle)
     }
 
     func runExe(_ exe: URL, in bottle: Bottle) async {
@@ -523,9 +540,27 @@ public extension AppState {
         } catch {
             report(error)
         }
-        // Only this bottle's programs were killed — leave other bottles' state.
-        for program in bottle.programs {
-            runningIDs.remove(program.id)
+        await settleStoppedBottle(bottle)
+    }
+
+    /// After a stop request, believe the probe — not the request: waits for
+    /// the bottle's wineserver to go quiet (bounded) and only then clears
+    /// its running state. If the kill didn't take, the bottle keeps showing
+    /// as running instead of optimistically flipping to idle.
+    private func settleStoppedBottle(_ bottle: Bottle) async {
+        let prefix = await bottleStore.prefixDirectory(of: bottle)
+        let deadline = Date().addingTimeInterval(stopProbeTimeoutSeconds)
+        while activityProbe.isActive(prefix: prefix), Date() < deadline {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        if activityProbe.isActive(prefix: prefix) {
+            activeBottleIDs.insert(bottle.id)
+        } else {
+            activeBottleIDs.remove(bottle.id)
+            // Only this bottle's programs stopped — leave other bottles' state.
+            for program in bottle.programs {
+                runningIDs.remove(program.id)
+            }
         }
     }
 

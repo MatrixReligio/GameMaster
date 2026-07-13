@@ -194,7 +194,10 @@ struct ProgramCard: View {
     @State private var icon: NSImage?
 
     private var isRunning: Bool {
-        appState.runningIDs.contains(program.id)
+        // runningIDs ∪ active bottle: after an app relaunch the per-program
+        // IDs are gone but the bottle's wineserver may still be alive —
+        // showing Play there would launch a second instance.
+        appState.isProgramRunning(program, in: bottle)
     }
 
     private var isMigrating: Bool {

@@ -85,6 +85,24 @@ private struct MultiDownloader: Downloading {
     }
 }
 
+/// Scriptable wineserver-activity probe (per-prefix on/off switch).
+private final class FakeProbe: PrefixActivityProbing, @unchecked Sendable {
+    private let active = Mutex<Set<String>>([])
+    func setActive(_ prefix: URL, _ value: Bool) {
+        active.withLock {
+            if value {
+                $0.insert(prefix.path)
+            } else {
+                $0.remove(prefix.path)
+            }
+        }
+    }
+
+    func isActive(prefix: URL) -> Bool {
+        active.withLock { $0.contains(prefix.path) }
+    }
+}
+
 @MainActor
 private func makeState(dir: URL, fixture: URL, entry: RuntimeManifest.Entry, runner: FakeRunner) -> AppState {
     AppState(
@@ -350,24 +368,6 @@ struct AppStateGuardTests {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
-
-        final class FakeProbe: PrefixActivityProbing, @unchecked Sendable {
-            private let active = Mutex<Set<String>>([])
-            func setActive(_ prefix: URL, _ value: Bool) {
-                active.withLock {
-                    if value {
-                        $0.insert(prefix.path)
-                    } else {
-                        $0.remove(prefix.path)
-                    }
-                }
-            }
-
-            func isActive(prefix: URL) -> Bool {
-                active.withLock { $0.contains(prefix.path) }
-            }
-        }
-
         let probe = FakeProbe()
         let state = AppState(
             root: dir.appendingPathComponent("approot"),
@@ -400,6 +400,84 @@ struct AppStateGuardTests {
         state.lastErrorMessage = nil
         await state.deleteBottle(bottle)
         #expect(!state.bottles.contains { $0.id == bottle.id })
+    }
+
+    /// After an app relaunch the per-program running IDs are gone, but the
+    /// bottle's wineserver is still alive. The program must present as
+    /// running — offering Play on a live bottle invites a second instance.
+    @Test func programInActiveBottleReportsRunningAfterRestart() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let probe = FakeProbe()
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner(),
+            activityProbe: probe
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let program = Program(name: "Steam", windowsPath: "C:\\steam.exe")
+
+        // "App relaunch": wineserver alive, runningIDs empty.
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        probe.setActive(prefix, true)
+        await state.refresh()
+        #expect(state.runningIDs.isEmpty)
+        #expect(state.isProgramRunning(program, in: bottle))
+
+        probe.setActive(prefix, false)
+        await state.refresh()
+        #expect(!state.isProgramRunning(program, in: bottle))
+    }
+
+    /// Stopping must believe the probe, not the request: state clears only
+    /// once the bottle's wineserver actually went quiet, and stays honest
+    /// when the kill didn't take.
+    @Test func stopPathsReprobeActivityInsteadOfAssumingSuccess() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let probe = FakeProbe()
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner(),
+            stopProbeTimeoutSeconds: 0.3,
+            activityProbe: probe
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        let program = Program(name: "Steam", windowsPath: "C:\\steam.exe")
+
+        // The kill didn't take (wineserver still alive) → still running.
+        probe.setActive(prefix, true)
+        await state.refresh()
+        await state.stopAll(in: bottle)
+        #expect(state.isProgramRunning(program, in: bottle))
+
+        // Now it took → cleared without waiting for the next refresh.
+        probe.setActive(prefix, false)
+        await state.stopAll(in: bottle)
+        #expect(!state.isProgramRunning(program, in: bottle))
+
+        // The graceful per-program stop path reprobes the same way.
+        probe.setActive(prefix, true)
+        await state.refresh()
+        #expect(state.isProgramRunning(program, in: bottle))
+        probe.setActive(prefix, false)
+        await state.stopProgram(program, in: bottle)
+        #expect(!state.isProgramRunning(program, in: bottle))
     }
 
     /// A program that dies right after launch (missing DLL, bad path, crashed
