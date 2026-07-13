@@ -62,6 +62,43 @@ struct PEIconExtractorTests {
         _ = PEIconExtractor.extractIcoData(from: full)
     }
 
+    /// A resource directory entry that points back at its own directory
+    /// forms a cycle; the walker must bail out instead of recursing until
+    /// the stack overflows (users drop arbitrary .exe files on the app).
+    @Test func selfReferencingResourceDirectoryReturnsNilInsteadOfHanging() {
+        var pe = FixturePE.build()
+        // FixturePE layout: .rsrc at file offset 0x400; the GROUP_ICON id
+        // directory ("idGroup") sits at +0x68 and its first entry's offset
+        // field at +0x68+16+4 → file 0x47C. Point it back at idGroup itself
+        // with the directory bit set.
+        pe.replaceSubrange(0x47C ..< 0x480, with: (UInt32(0x68) | 0x8000_0000).le)
+        #expect(PEIconExtractor.extractIcoData(from: pe) == nil)
+
+        // Two directories pointing at each other must terminate too.
+        var pe2 = FixturePE.build()
+        // typeGroup at +0x38: entry offset field at +0x38+16+4 → 0x44C.
+        // idGroup's entry (0x47C) points back at typeGroup (+0x38).
+        pe2.replaceSubrange(0x47C ..< 0x480, with: (UInt32(0x38) | 0x8000_0000).le)
+        #expect(PEIconExtractor.extractIcoData(from: pe2) == nil)
+    }
+
+    /// A GRPICONDIR claiming thousands of entries must not produce an
+    /// unbounded .ico — the assembled output is capped.
+    @Test func excessiveIconCountIsBounded() throws {
+        let pe = FixturePE.build(groupIconEntryCount: 1_000)
+        let ico = try #require(PEIconExtractor.extractIcoData(from: pe))
+        let count = Int(ico[ico.startIndex + 4]) | (Int(ico[ico.startIndex + 5]) << 8)
+        #expect(count <= 64)
+    }
+
+    /// Many entries referencing a large payload must not balloon the output
+    /// past the total byte budget (payload amplification).
+    @Test func excessiveTotalIconBytesAreBounded() {
+        let pe = FixturePE.build(groupIconEntryCount: 24, iconPayload: Data(count: 1 << 20))
+        let ico = PEIconExtractor.extractIcoData(from: pe)
+        #expect((ico?.count ?? 0) <= 16 * 1024 * 1024 + 4096)
+    }
+
     /// Icon extraction reads the whole candidate file; a giant .exe must be
     /// skipped (size gate) rather than ballooning the app's memory.
     @Test func oversizedExecutableIsSkipped() throws {

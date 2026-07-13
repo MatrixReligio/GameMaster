@@ -13,6 +13,14 @@ public enum PEIconExtractor {
     /// balloon memory (games ship some enormous executables).
     static let maxFileBytes = 256 * 1024 * 1024
 
+    /// Real GRPICONDIRs carry a handful of sizes; a crafted count in the
+    /// thousands only amplifies the assembled output.
+    static let maxIcons = 64
+
+    /// Total payload budget for the assembled .ico — each RT_ICON is already
+    /// capped at 32MB, this bounds the sum.
+    static let maxTotalIconBytes = 16 * 1024 * 1024
+
     public static func extractIcoData(from exe: URL) -> Data? {
         let size = (try? FileManager.default.attributesOfItem(atPath: exe.path))?[.size] as? Int
         guard let size, size <= maxFileBytes else { return nil }
@@ -43,7 +51,7 @@ public enum PEIconExtractor {
             var size: UInt32
         }
         var entries: [Entry] = []
-        for index in 0 ..< count {
+        for index in 0 ..< min(count, maxIcons) {
             let base = 6 + index * 14
             let meta = group.subdata(in: group.startIndex + base ..< group.startIndex + base + 12)
             let size = group.readU32(base + 8)
@@ -51,13 +59,18 @@ public enum PEIconExtractor {
             entries.append(Entry(meta: meta, resourceID: id, size: size))
         }
 
-        // Fetch each RT_ICON payload; keep entries whose data resolves.
+        // Fetch each RT_ICON payload; keep entries whose data resolves,
+        // stopping once the total budget is spent (crafted directories can
+        // reference one huge payload from every entry).
         var images: [(meta: Data, payload: Data)] = []
+        var totalBytes = 0
         for entry in entries {
             guard
                 let leaf = firstLeaf(pe: pe, root: resourceRoot, type: rtIcon, id: entry.resourceID),
                 let payload = pe.resourceData(leafOffset: leaf)
             else { continue }
+            guard totalBytes + payload.count <= maxTotalIconBytes else { break }
+            totalBytes += payload.count
             images.append((entry.meta, payload))
         }
         guard !images.isEmpty else { return nil }
@@ -162,11 +175,28 @@ private struct PEFile {
         entries(dirOffset: dirOffset).first { $0.id == id }.flatMap { resolve(entry: $0, base: base) }
     }
 
+    /// Resource trees are spec'd three levels deep (type → id → language);
+    /// 8 tolerates odd-but-real files while crafted deep chains bail out.
+    private static let maxResourceDepth = 8
+
     func firstDirectoryEntry(dirOffset: Int, base: Int, expectLeaf: Bool = false) -> Int? {
+        var visited: Set<Int> = []
+        return firstDirectoryEntry(
+            dirOffset: dirOffset, base: base, expectLeaf: expectLeaf, visited: &visited, depth: 0
+        )
+    }
+
+    /// `visited` breaks cycles (an entry pointing back at an ancestor
+    /// directory), `depth` bounds long non-cyclic chains — either would
+    /// otherwise recurse until the stack overflows on a crafted file.
+    private func firstDirectoryEntry(
+        dirOffset: Int, base: Int, expectLeaf: Bool, visited: inout Set<Int>, depth: Int
+    ) -> Int? {
+        guard depth < Self.maxResourceDepth, visited.insert(dirOffset).inserted else { return nil }
         guard let first = entries(dirOffset: dirOffset).first else { return nil }
         if expectLeaf, first.isDirectory { // language dirs may nest one more level
             return resolve(entry: first, base: base).flatMap {
-                firstDirectoryEntry(dirOffset: $0, base: base, expectLeaf: true)
+                firstDirectoryEntry(dirOffset: $0, base: base, expectLeaf: true, visited: &visited, depth: depth + 1)
             }
         }
         return resolve(entry: first, base: base)

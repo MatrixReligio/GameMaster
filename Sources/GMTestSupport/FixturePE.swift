@@ -16,7 +16,7 @@ public enum FixturePE {
 
     // Byte-layout construction reads best as one sequential function.
     // swiftlint:disable:next function_body_length
-    public static func build() -> Data {
+    public static func build(groupIconEntryCount: Int = 1, iconPayload: Data? = nil) -> Data {
         let rsrcRVA: UInt32 = 0x1000
         var rsrc = Data()
 
@@ -55,17 +55,21 @@ public enum FixturePE {
         }
 
         // Build ICO payloads.
-        let iconData = pngIcon
-        // GRPICONDIR: reserved, type=1, count=1; entry: w,h,colors,res,planes,bpp,size,id
+        let iconData = iconPayload ?? pngIcon
+        // GRPICONDIR: reserved, type=1, count; entries: w,h,colors,res,planes,bpp,size,id.
+        // All entries reference the same RT_ICON id 7 — enough for tests that
+        // probe count-amplification without a resource per entry.
         var group = Data()
         group.append(UInt16(0).le)
         group.append(UInt16(1).le)
-        group.append(UInt16(1).le)
-        group.append(contentsOf: [1, 1, 0, 0]) // 1x1, no palette
-        group.append(UInt16(1).le) // planes
-        group.append(UInt16(32).le) // bpp
-        group.append(UInt32(iconData.count).le)
-        group.append(UInt16(7).le) // RT_ICON resource id 7
+        group.append(UInt16(groupIconEntryCount).le)
+        for _ in 0 ..< groupIconEntryCount {
+            group.append(contentsOf: [1, 1, 0, 0]) // 1x1, no palette
+            group.append(UInt16(1).le) // planes
+            group.append(UInt16(32).le) // bpp
+            group.append(UInt32(iconData.count).le)
+            group.append(UInt16(7).le) // RT_ICON resource id 7
+        }
 
         // Chunk order (offsets computed on demand):
         chunks = [
