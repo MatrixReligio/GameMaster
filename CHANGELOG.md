@@ -4,6 +4,26 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.11] — 2026-07-14
+
+Follow-up fixes from a code-review pass over 0.3.10 — two of these are
+regressions 0.3.10 introduced.
+
+### Fixed
+- **Starting a second install no longer clashes with one already running.**
+  0.3.10 scoped install progress per bottle, which accidentally let you kick off
+  a second install (even into another bottle) on top of a running one; now other
+  bottles show "Another install is in progress…" until the first finishes.
+- **Stop / Force Stop All work even when a bottle's MetalFX files are damaged.**
+  0.3.10 routed graphics preparation through the same path used to stop a
+  program, so a broken MetalFX file could leave a bottle unstoppable. Stopping no
+  longer depends on that preparation.
+- **New bottles on the default runtime keep Retina on.** The "tuned to your Mac"
+  defaults were turning Retina off without enabling MetalFX to restore
+  sharpness, giving a needlessly soft default image; Retina is now only lowered
+  when MetalFX will upscale it back.
+- The app icon no longer logs an asset-size warning on every build.
+
 ## [0.3.10] — 2026-07-14
 
 Reliability and correctness fixes from a code-review pass — no behavior you
