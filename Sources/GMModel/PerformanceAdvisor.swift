@@ -68,9 +68,11 @@ public enum PerformanceAdvisor {
             settings.metalFXUpscaleFactor = nil
         }
 
-        // Leave the frame-rate uncapped by default: on a competitive game the
-        // extra frames still cut input latency even above the refresh rate.
-        settings.maxFrameRate = nil
+        // The frame-rate cap is not a display-driven field, so leave whatever
+        // the caller had: a new bottle's base is uncapped (best for a
+        // competitive game — extra frames cut input latency even above the
+        // refresh rate), and a cap the user set by hand is preserved rather
+        // than silently reset when they press "Recommend".
         return settings
     }
 }

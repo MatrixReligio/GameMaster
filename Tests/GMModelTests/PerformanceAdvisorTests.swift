@@ -77,4 +77,17 @@ struct PerformanceAdvisorTests {
         #expect(rec.advertiseAVX == true)
         #expect(rec.extraEnvironment == ["FOO": "bar"])
     }
+
+    /// The frame-rate cap is not a display-driven field — the UI's "Recommend"
+    /// help promises only Retina/MetalFX changes, so a cap the user set by hand
+    /// must survive the recommendation instead of being silently reset to
+    /// uncapped. (A new bottle's base is already uncapped, so defaults are
+    /// unaffected.)
+    @Test func preservesUserFrameRateCap() {
+        let hw = HardwareProfile(physicalWidth: 3840, logicalWidth: 1920, refreshHz: 60)
+        var base = BottleSettings()
+        base.maxFrameRate = 60
+        let rec = PerformanceAdvisor.recommend(for: hw, runtime: dxmt, base: base)
+        #expect(rec.maxFrameRate == 60)
+    }
 }
