@@ -355,40 +355,52 @@ public final class AppState {
 
     // MARK: - Programs
 
-    public private(set) var installProgress: (phase: InstallPhase, fraction: Double)?
+    /// The install/migration currently writing into a bottle, tagged with that
+    /// bottle's id so a sibling bottle's detail view can't show it. nil when
+    /// nothing is installing.
+    public private(set) var activeInstall: ActiveInstall?
+
+    /// Install/migration progress for `bottle`, or nil when a *different*
+    /// bottle (or none) is installing — so switching to another bottle's view
+    /// no longer shows a sibling's progress bar.
+    public func installProgress(for bottle: Bottle) -> (phase: InstallPhase, fraction: Double)? {
+        guard let activeInstall, activeInstall.bottleID == bottle.id else { return nil }
+        return (activeInstall.phase, activeInstall.fraction)
+    }
 
     public func installCatalogApp(id: String, into bottle: Bottle) async {
         guard let entry = catalog.entries.first(where: { $0.id == id }) else {
             lastErrorMessage = String(localized: "Unknown installer.")
             return
         }
+        let bottleID = bottle.id
         appInstallToken += 1
         let token = appInstallToken
-        installProgress = (.downloading, 0)
-        busyBottleIDs.insert(bottle.id)
-        defer { busyBottleIDs.remove(bottle.id) }
+        activeInstall = ActiveInstall(bottleID: bottleID, phase: .downloading, fraction: 0)
+        busyBottleIDs.insert(bottleID)
+        defer { busyBottleIDs.remove(bottleID) }
         do {
             // The app may switch the bottle to a different run runtime (Steam
             // bootstraps under GPTK but runs under a newer Wine); fetch it first
             // so the switched bottle has a runtime to launch under.
-            try await ensureRunRuntimeInstalled(for: entry, token: token)
+            try await ensureRunRuntimeInstalled(for: entry, bottleID: bottleID, token: token)
             _ = try await appInstaller.install(entry, into: bottle) { [weak self] phase, fraction in
                 Task { @MainActor [weak self] in
                     guard let self, appInstallToken == token else { return }
-                    installProgress = (phase, fraction)
+                    activeInstall = ActiveInstall(bottleID: bottleID, phase: phase, fraction: fraction)
                 }
             }
         } catch {
             report(error)
         }
         appInstallToken += 1
-        installProgress = nil
+        activeInstall = nil
         await refresh()
     }
 
     /// Downloads the installer's `runRuntimeID` runtime if it isn't installed yet.
     /// No-op when the entry doesn't switch runtimes or the runtime is present.
-    private func ensureRunRuntimeInstalled(for entry: InstallerCatalog.Entry, token: Int) async throws {
+    private func ensureRunRuntimeInstalled(for entry: InstallerCatalog.Entry, bottleID: UUID, token: Int) async throws {
         guard let runID = entry.runRuntimeID,
               try await runtimeStore.descriptor(id: runID) == nil,
               let runtimeEntry = manifest.entries.first(where: { $0.id == runID })
@@ -396,7 +408,7 @@ public final class AppState {
         _ = try await installer.install(entry: runtimeEntry) { [weak self] _, fraction in
             Task { @MainActor [weak self] in
                 guard let self, appInstallToken == token else { return }
-                installProgress = (.downloading, fraction)
+                activeInstall = ActiveInstall(bottleID: bottleID, phase: .downloading, fraction: fraction)
             }
         }
     }
@@ -499,22 +511,23 @@ public extension AppState {
         }), let runID = entry.runRuntimeID, bottle.runtimeID != runID else {
             return bottle
         }
+        let bottleID = bottle.id
         appInstallToken += 1
         let token = appInstallToken
         migratingProgramID = program.id
-        installProgress = (.downloading, 0)
-        busyBottleIDs.insert(bottle.id)
+        activeInstall = ActiveInstall(bottleID: bottleID, phase: .downloading, fraction: 0)
+        busyBottleIDs.insert(bottleID)
         defer {
             appInstallToken += 1
             migratingProgramID = nil
-            installProgress = nil
-            busyBottleIDs.remove(bottle.id)
+            activeInstall = nil
+            busyBottleIDs.remove(bottleID)
         }
-        try await ensureRunRuntimeInstalled(for: entry, token: token)
+        try await ensureRunRuntimeInstalled(for: entry, bottleID: bottleID, token: token)
         let migrated = try await appInstaller.migrate(entry, in: bottle) { [weak self] phase, fraction in
             Task { @MainActor [weak self] in
                 guard let self, appInstallToken == token else { return }
-                installProgress = (phase, fraction)
+                activeInstall = ActiveInstall(bottleID: bottleID, phase: phase, fraction: fraction)
             }
         }
         bottles = try await bottleStore.list()

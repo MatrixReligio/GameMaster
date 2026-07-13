@@ -159,7 +159,7 @@ struct SteamHeroCard: View {
             .multilineTextAlignment(.center)
             .frame(maxWidth: 380)
 
-            if let progress = appState.installProgress {
+            if let progress = appState.installProgress(for: bottle) {
                 VStack(spacing: 6) {
                     ProgressView(value: progress.fraction)
                         .frame(width: 240)
@@ -261,7 +261,7 @@ struct ProgramCard: View {
             Text(program.name)
                 .font(.headline)
                 .lineLimit(1)
-            if isMigrating, let progress = appState.installProgress {
+            if isMigrating, let progress = appState.installProgress(for: bottle) {
                 VStack(spacing: 4) {
                     ProgressView(value: progress.fraction)
                     Text(String(localized: "Upgrading runtime…"))

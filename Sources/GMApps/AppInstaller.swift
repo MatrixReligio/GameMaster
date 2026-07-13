@@ -11,6 +11,20 @@ public enum InstallPhase: Sendable, Equatable {
     case done
 }
 
+/// The one install/migration currently writing into a bottle, tagged with that
+/// bottle's id so only that bottle's view shows its progress.
+public struct ActiveInstall: Sendable, Equatable {
+    public let bottleID: UUID
+    public let phase: InstallPhase
+    public let fraction: Double
+
+    public init(bottleID: UUID, phase: InstallPhase, fraction: Double) {
+        self.bottleID = bottleID
+        self.phase = phase
+        self.fraction = fraction
+    }
+}
+
 public enum InstallError: Error, LocalizedError, Equatable {
     case installerFailed(name: String, exitCode: Int32)
     case programNotFound(name: String, path: String)

@@ -86,6 +86,29 @@ private struct MultiDownloader: Downloading {
     }
 }
 
+/// Serves the runtime fixture for the runtime URL but blocks forever on any
+/// other download (the app installer's SteamSetup fetch), so an install can be
+/// held mid-flight while runtime setup still succeeds.
+private struct RuntimeThenBlockDownloader: Downloading {
+    let fixture: URL
+    let runtimeURL: URL
+
+    func download(from url: URL, to destination: URL, progress: (@Sendable (Double) -> Void)?) async throws {
+        guard url == runtimeURL else {
+            try await Task.sleep(nanoseconds: 60_000_000_000) // held until the test cancels
+            return
+        }
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.copyItem(at: fixture, to: destination)
+        progress?(1.0)
+    }
+}
+
 @MainActor
 private func makeState(dir: URL, fixture: URL, entry: RuntimeManifest.Entry, runner: FakeRunner) -> AppState {
     AppState(
@@ -226,6 +249,39 @@ struct AppStateTests {
         // later refresh (or restart) can't resurrect it.
         await state.refresh()
         #expect(state.bottles.isEmpty)
+    }
+
+    /// Install progress belongs to the bottle being installed into. While an
+    /// install runs in bottle A, switching to bottle B must not show A's
+    /// progress bar — the progress is scoped to A's id, so B reads nil.
+    @Test func installProgressIsScopedToTheInstallingBottle() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: RuntimeThenBlockDownloader(fixture: fixture, runtimeURL: entry.url),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "A")
+        let bottleA = try #require(state.bottles.first { $0.name == "A" })
+        await state.createBottle(name: "B")
+        let bottleB = try #require(state.bottles.first { $0.name == "B" })
+
+        // Install into A; the SteamSetup download blocks, holding it mid-flight.
+        let task = Task { await state.installCatalogApp(id: "steam", into: bottleA) }
+        while state.installProgress(for: bottleA) == nil {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(state.installProgress(for: bottleA) != nil)
+        #expect(state.installProgress(for: bottleB) == nil)
+
+        task.cancel()
+        _ = await task.value
     }
 
     /// The settings sheet's "Recommend" button asks for settings tuned to this
