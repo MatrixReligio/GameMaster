@@ -67,13 +67,26 @@ public actor RuntimeStore {
         try installedRuntimes().first { $0.id == id }
     }
 
-    public func save(_ descriptor: RuntimeDescriptor) throws {
-        let dir = runtimeDirectory(id: descriptor.id)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    /// The metadata file that marks a directory as an installed runtime.
+    public static let metadataFileName = "runtime.json"
+
+    /// Encodes `descriptor` into `directory`/runtime.json. Shared by `save`
+    /// (into the installed location) and the installer (into a STAGING dir,
+    /// so the payload and its metadata land together in a single rename
+    /// rather than two separately-interruptible writes).
+    public static func writeMetadata(_ descriptor: RuntimeDescriptor, into directory: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         // .atomic: a crash mid-write must never leave a truncated runtime.json
         // (which listing() would then report as corrupt).
-        try encoder.encode(descriptor).write(to: dir.appendingPathComponent("runtime.json"), options: [.atomic])
+        try encoder.encode(descriptor).write(
+            to: directory.appendingPathComponent(metadataFileName), options: [.atomic]
+        )
+    }
+
+    public func save(_ descriptor: RuntimeDescriptor) throws {
+        let dir = runtimeDirectory(id: descriptor.id)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Self.writeMetadata(descriptor, into: dir)
     }
 }

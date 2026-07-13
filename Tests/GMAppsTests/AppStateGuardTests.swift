@@ -232,6 +232,32 @@ struct AppStateGuardTests {
         #expect(FileManager.default.fileExists(atPath: official.path))
     }
 
+    /// A failure inside the one-shot startup backup-recovery must not blank
+    /// the rest of refresh (bottles, runtime status) — recovery is best-effort
+    /// and its errors are reported, not fatal.
+    @Test func refreshSurvivesRuntimeRecoveryFailure() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let seed = makeState(dir: dir, fixture: fixture, entry: entry, runner: FakeRunner())
+        await seed.installDefaultRuntime()
+        await seed.createBottle(name: "Keep")
+        #expect(seed.bottles.count == 1)
+
+        // Make startup recovery throw: replace the runtimes directory with a
+        // regular file so contentsOfDirectory fails. A fresh AppState runs the
+        // one-shot recovery on its first refresh.
+        let runtimes = dir.appendingPathComponent("approot/runtimes")
+        try FileManager.default.removeItem(at: runtimes)
+        try Data("not a directory".utf8).write(to: runtimes)
+
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: FakeRunner())
+        await state.refresh()
+        // Recovery failed, but the bottle still loaded and the error surfaced.
+        #expect(state.bottles.count == 1)
+        #expect(state.lastErrorMessage != nil)
+    }
+
     /// A corrupt runtime.json must not make the runtime vanish silently
     /// (which read as "missing" and triggered a re-download) — the user is
     /// told, and the file stays on disk for recovery.

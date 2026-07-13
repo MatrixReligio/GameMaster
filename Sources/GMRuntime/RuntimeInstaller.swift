@@ -31,9 +31,13 @@ public struct RuntimeInstaller: Sendable {
         self.quarantineRunner = quarantineRunner ?? runner
     }
 
+    /// `afterSwap` is an injectable seam (default no-op) fired right after the
+    /// payload is swapped into place, so tests can simulate a crash at that
+    /// instant and assert the runtime is already complete (payload + metadata).
     public func install(
         entry: RuntimeManifest.Entry,
-        progress: (@Sendable (RuntimePhase, Double) -> Void)?
+        progress: (@Sendable (RuntimePhase, Double) -> Void)?,
+        afterSwap: @Sendable () throws -> Void = {}
     ) async throws -> RuntimeDescriptor {
         let fm = FileManager.default
         let staging = fm.temporaryDirectory
@@ -63,13 +67,6 @@ public struct RuntimeInstaller: Sendable {
         progress?(.finishing, 0)
         try await Quarantine.remove(from: unpacked, runner: quarantineRunner)
 
-        let destination = await store.runtimeDirectory(id: entry.id)
-        try fm.createDirectory(
-            at: destination.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Self.replaceDirectory(at: destination, with: unpacked)
-
         var descriptor = RuntimeDescriptor(
             id: entry.id,
             displayVersion: entry.displayVersion,
@@ -82,7 +79,20 @@ public struct RuntimeInstaller: Sendable {
         if let dxmtVersion = entry.bundledDXMTVersion {
             descriptor.dxmt = .installed(version: dxmtVersion)
         }
-        try await store.save(descriptor)
+        // Write runtime.json INTO the staging tree, so the single rename below
+        // brings the payload and its metadata together. Writing metadata after
+        // the swap (as before) left a window where a crash produced a payload
+        // with no runtime.json — read as "missing" and pointlessly re-downloaded.
+        try RuntimeStore.writeMetadata(descriptor, into: unpacked)
+
+        let destination = await store.runtimeDirectory(id: entry.id)
+        try fm.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Self.replaceDirectory(at: destination, with: unpacked)
+        try afterSwap()
+
         progress?(.finishing, 1)
         return descriptor
     }

@@ -153,9 +153,17 @@ public final class AppState {
         do {
             // Once, before any install can create fresh backups: restore
             // runtime directories a crash left renamed-aside mid-replace.
+            // Best-effort: the "done" flag is set only AFTER success (so a
+            // transient failure retries next refresh instead of being skipped
+            // forever), and a failure is reported without aborting the rest of
+            // refresh (bottles + runtime status must still load).
             if !didRecoverRuntimeBackups {
-                didRecoverRuntimeBackups = true
-                try await RuntimeInstaller.recoverOrphanedBackups(in: runtimeStore.runtimesDirectory)
+                do {
+                    try await RuntimeInstaller.recoverOrphanedBackups(in: runtimeStore.runtimesDirectory)
+                    didRecoverRuntimeBackups = true
+                } catch {
+                    report(error)
+                }
             }
             let listing = try await bottleStore.listing()
             bottles = listing.bottles

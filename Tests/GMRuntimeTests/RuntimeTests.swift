@@ -172,6 +172,49 @@ struct RuntimeInstallerTests {
         #expect(seen == [.downloading, .verifying, .unpacking, .finishing])
     }
 
+    /// A crash right after the payload swap must not leave a runtime dir
+    /// with no runtime.json — that reads as "missing" and pointlessly
+    /// re-downloads. The metadata must land ATOMICALLY with the payload,
+    /// so the runtime is complete even if the process dies immediately after.
+    @Test func installLandsMetadataAtomicallyWithPayload() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fixture = try await makeRuntimeFixture(in: dir)
+        let sha = try SHA256.hexDigest(of: fixture)
+        let root = dir.appendingPathComponent("approot")
+        let store = RuntimeStore(root: root)
+        let installer = RuntimeInstaller(
+            store: store,
+            downloader: FakeDownloader(fixture: fixture),
+            runner: SubprocessRunner(),
+            quarantineRunner: FakeRunner()
+        )
+        let entry = try RuntimeManifest.Entry(
+            id: "gptk-test",
+            displayVersion: "GPTK test",
+            url: #require(URL(string: "https://example.com/runtime.tar.gz")),
+            sha256: sha,
+            wineBinaryRelativePath: "Game Porting Toolkit.app/Contents/Resources/wine/bin/wine64",
+            bundledGPTKVersion: "3.0"
+        )
+
+        struct Crash: Error {}
+        await #expect(throws: Crash.self) {
+            _ = try await installer.install(entry: entry, progress: nil) { throw Crash() }
+        }
+
+        // Despite the crash right after the swap, the runtime is COMPLETE:
+        // payload present AND discoverable via its metadata.
+        let rtDir = await store.runtimeDirectory(id: "gptk-test")
+        #expect(FileManager.default.fileExists(
+            atPath: rtDir.appendingPathComponent(entry.wineBinaryRelativePath).path
+        ))
+        #expect(FileManager.default.fileExists(
+            atPath: rtDir.appendingPathComponent(RuntimeStore.metadataFileName).path
+        ))
+        #expect(try await store.descriptor(id: "gptk-test") != nil)
+    }
+
     @Test func manifestDXMTVersionLandsInDescriptor() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
