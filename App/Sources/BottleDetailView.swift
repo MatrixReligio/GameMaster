@@ -99,10 +99,7 @@ struct BottleDetailView: View {
                 Task { await appState.runExe(exe, in: bottle) }
             }
             Button(String(localized: "Add to Library and Run")) {
-                Task {
-                    await appState.addProgram(exe: exe, in: bottle)
-                    await appState.runExe(exe, in: bottle)
-                }
+                Task { await appState.addProgramAndLaunch(exe: exe, in: bottle) }
             }
             Button(String(localized: "Cancel"), role: .cancel) {}
         } message: { exe in

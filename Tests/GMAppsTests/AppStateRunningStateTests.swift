@@ -182,6 +182,50 @@ struct AppStateRunningStateTests {
         #expect(!state.isProgramRunning(program, in: bottle))
     }
 
+    /// "Add to Library and Run" must go through the running-state machine, not
+    /// fire-and-forget: otherwise the freshly-added card shows Play while the
+    /// program is already running, and a second click starts a duplicate. The
+    /// added program must present as running while its launch is in flight.
+    @Test func addAndRunLaunchesThroughRunningState() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = GatedLaunchRunner()
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+
+        let exe = dir.appendingPathComponent("Game.exe")
+        let launchTask = Task { await state.addProgramAndLaunch(exe: exe, in: bottle) }
+
+        // The added program appears in the library and presents as running
+        // while its (gated) launch is suspended at `start /wait`.
+        var found: Program?
+        for _ in 0 ..< 200 where found == nil {
+            if let candidate = state.bottles.first?.programs.first(where: { $0.name == "Game" }),
+               state.runningIDs.contains(candidate.id) {
+                found = candidate
+            } else {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+        let program = try #require(found)
+        #expect(state.isProgramRunning(program, in: bottle))
+
+        // Cleanup: release the gated launch so the task completes and clears.
+        runner.release()
+        await launchTask.value
+        #expect(!state.runningIDs.contains(program.id))
+    }
+
     /// A Stop that times out (program refuses to die — a save dialog, Steam
     /// updating) must not leave the card stuck showing "Closing…" with no
     /// button. After the timeout the program reverts to Running + Stop and its

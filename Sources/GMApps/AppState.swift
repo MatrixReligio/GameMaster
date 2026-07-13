@@ -401,15 +401,6 @@ public final class AppState {
         }
     }
 
-    public func addProgram(exe: URL, in bottle: Bottle) async {
-        do {
-            _ = try await programLibrary.addProgram(exe: exe, name: nil, in: bottle)
-            await refresh()
-        } catch {
-            report(error)
-        }
-    }
-
     public func removeProgram(id: UUID, from bottle: Bottle) async {
         do {
             try await programLibrary.removeProgram(id: id, from: bottle)
@@ -567,6 +558,22 @@ public extension AppState {
             report(error)
         }
         await settleStoppedBottle(bottle)
+    }
+
+    /// Adds a dropped exe to the library and launches it through the running
+    /// state machine, so the new card shows Starting/Running instead of Play on
+    /// an already-running program (a second click would start a duplicate).
+    /// Unlike `runExe`, the launch is tracked, not fire-and-forget.
+    func addProgramAndLaunch(exe: URL, in bottle: Bottle) async {
+        let program: Program
+        do {
+            program = try await programLibrary.addProgram(exe: exe, name: nil, in: bottle)
+        } catch {
+            report(error)
+            return
+        }
+        await refresh()
+        await launch(program: program, in: bottle)
     }
 
     func runExe(_ exe: URL, in bottle: Bottle) async {
