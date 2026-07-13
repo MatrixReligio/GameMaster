@@ -170,6 +170,78 @@ struct AppStateTests {
         #expect(arguments.contains { $0.first == "regedit" })
     }
 
+    /// New bottles pick up hardware-tuned graphics defaults when a display
+    /// profile is available: a HiDPI Mac renders at the logical resolution
+    /// (Retina off) instead of the default on, so the GPU isn't spent on pixels
+    /// the CPU-bound game can't feed. Existing bottles are never touched.
+    @Test func createBottleAppliesHardwareRecommendation() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner(),
+            hardwareProfileProvider: { HardwareProfile(physicalWidth: 3840, logicalWidth: 1920, refreshHz: 60) }
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        #expect(bottle.settings.retinaMode == false)
+    }
+
+    /// With no detectable display (headless CI, tests) new bottles keep the
+    /// plain defaults — nothing is guessed.
+    @Test func createBottleKeepsDefaultsWithoutHardwareProfile() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: FakeRunner())
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        #expect(bottle.settings.retinaMode == true)
+    }
+
+    /// The settings sheet's "Recommend" button asks for settings tuned to this
+    /// Mac; it returns a recommendation built from the bottle's current settings
+    /// so unrelated fields are preserved, and callers apply it to their draft.
+    @Test func recommendedSettingsUsesDisplayAndRuntime() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner(),
+            hardwareProfileProvider: { HardwareProfile(physicalWidth: 3840, logicalWidth: 1920, refreshHz: 60) }
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let recommended = await state.recommendedSettings(for: bottle)
+        #expect(recommended?.retinaMode == false)
+    }
+
+    /// No display detectable → no recommendation (the button hides / does nothing).
+    @Test func recommendedSettingsNilWithoutDisplay() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: FakeRunner())
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let recommended = await state.recommendedSettings(for: bottle)
+        #expect(recommended == nil)
+    }
+
     @Test func installSteamRegistersPinnedProgram() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

@@ -4,7 +4,7 @@ import SwiftUI
 
 @main
 struct GameMasterApp: App {
-    @State private var appState = AppState()
+    @State private var appState = AppState(hardwareProfileProvider: DisplayProfile.detect)
 
     /// Sparkle auto-update (appcast on GitHub Releases, EdDSA-signed).
     private let updaterController = SPUStandardUpdaterController(

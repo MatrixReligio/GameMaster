@@ -69,7 +69,11 @@ public final class AppState {
     private var didRecoverRuntimeBackups = false
 
     /// Production entry point: real system implementations, app-support root.
-    public convenience init() {
+    /// `hardwareProfileProvider` is supplied by the app layer (NSScreen-based)
+    /// so GMApps stays free of AppKit.
+    public convenience init(
+        hardwareProfileProvider: @escaping @MainActor () -> HardwareProfile? = { nil }
+    ) {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let runner = SubprocessRunner()
         self.init(
@@ -78,7 +82,8 @@ public final class AppState {
             downloader: URLSessionDownloader(),
             mounter: HdiutilMounter(runner: runner),
             manifest: (try? RuntimeManifest.bundled())
-                ?? RuntimeManifest(defaultRuntimeID: "", entries: [])
+                ?? RuntimeManifest(defaultRuntimeID: "", entries: []),
+            hardwareProfileProvider: hardwareProfileProvider
         )
     }
 
@@ -93,6 +98,12 @@ public final class AppState {
     /// don't wait out real seconds.
     private let stopProbeTimeoutSeconds: TimeInterval
 
+    /// Supplies the running Mac's display profile so new bottles can be seeded
+    /// with hardware-tuned graphics defaults. Returns nil when no display is
+    /// detectable (headless/tests) — then nothing is guessed. Injected by the
+    /// app layer (NSScreen); left nil in unit tests unless a case needs it.
+    private let hardwareProfileProvider: @MainActor () -> HardwareProfile?
+
     /// `runner` launches wine; `systemToolRunner` (defaults to `runner`)
     /// launches tar/ditto/xattr — tests fake wine while keeping real tools.
     public init(
@@ -105,13 +116,15 @@ public final class AppState {
         systemToolRunner: (any ProcessRunning)? = nil,
         launchFailureWindowSeconds: TimeInterval = 10,
         stopProbeTimeoutSeconds: TimeInterval = 30,
-        activityProbe: any PrefixActivityProbing = WineServerProbe()
+        activityProbe: any PrefixActivityProbing = WineServerProbe(),
+        hardwareProfileProvider: @escaping @MainActor () -> HardwareProfile? = { nil }
     ) {
         self.manifest = manifest
         self.runner = runner
         self.launchFailureWindowSeconds = launchFailureWindowSeconds
         self.stopProbeTimeoutSeconds = stopProbeTimeoutSeconds
         self.activityProbe = activityProbe
+        self.hardwareProfileProvider = hardwareProfileProvider
         let toolRunner = systemToolRunner ?? runner
         gptkDetector = detector
         catalog = (try? InstallerCatalog.bundled()) ?? InstallerCatalog(entries: [])
@@ -256,7 +269,16 @@ public final class AppState {
         creatingBottle = true
         defer { creatingBottle = false }
         do {
-            let bottle = try await bottleStore.create(name: name, runtimeID: manifest.defaultRuntimeID)
+            var bottle = try await bottleStore.create(name: name, runtimeID: manifest.defaultRuntimeID)
+            // Seed hardware-tuned graphics defaults before the first boot, so the
+            // Retina registry the init writes already matches the recommendation.
+            if let hardware = hardwareProfileProvider(),
+               let descriptor = try? await runtimeStore.descriptor(id: bottle.runtimeID ?? manifest.defaultRuntimeID) {
+                bottle.settings = PerformanceAdvisor.recommend(
+                    for: hardware, runtime: descriptor, base: bottle.settings
+                )
+                try await bottleStore.save(bottle)
+            }
             try await launcher.initializeBottle(bottle)
             await refresh()
             selectedBottleID = bottle.id
@@ -603,6 +625,18 @@ public extension AppState {
             return false
         }
         return true
+    }
+
+    /// Graphics settings tuned to this Mac's display for `bottle`'s runtime, or
+    /// nil when no display is detectable. Built on top of the bottle's current
+    /// settings so unrelated fields survive. The settings sheet's "Recommend"
+    /// button applies the result to its draft — existing bottles change only if
+    /// the user then saves.
+    func recommendedSettings(for bottle: Bottle) async -> BottleSettings? {
+        guard let hardware = hardwareProfileProvider() else { return nil }
+        let id = bottle.runtimeID ?? manifest.defaultRuntimeID
+        guard let descriptor = try? await runtimeStore.descriptor(id: id) else { return nil }
+        return PerformanceAdvisor.recommend(for: hardware, runtime: descriptor, base: bottle.settings)
     }
 
     // MARK: - Environment checks
