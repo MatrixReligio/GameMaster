@@ -417,6 +417,41 @@ struct MetalFXLaunchTests {
             _ = try await launcher.launch(Program(name: "G", windowsPath: "C:\\g.exe"), in: bottle)
         }
     }
+
+    /// Stopping must never depend on MetalFX file preparation: a bottle whose
+    /// MetalFX shims are broken must still be stoppable. `taskkill` and
+    /// `stopAll` get a plain runtime context and never run the (throwing) prep,
+    /// even though a launch of the same bottle surfaces the prep failure.
+    @Test func stopCommandsIgnoreBrokenMetalFXPrep() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let winDir = env.root.appendingPathComponent("runtimes/rt/gptk/wine/lib/wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: winDir, withIntermediateDirectories: true)
+        try Data("dll".utf8).write(to: winDir.appendingPathComponent("nvngx-on-metalfx.dll"))
+
+        // Broken prep: a FILE sits where the prefix's system32 must be created.
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let windows = prefix.appendingPathComponent("drive_c/windows")
+        try FileManager.default.createDirectory(at: windows, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: windows.appendingPathComponent("system32"))
+
+        var bottle = env.bottle
+        bottle.settings.metalFX = true
+        let launcher = WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: FakeRunner(),
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+        // Stop paths must succeed despite the broken MetalFX prep.
+        try await launcher.stopAll(in: bottle)
+        try await launcher.taskkill(imageName: "g.exe", in: bottle)
+        // A launch of the same bottle still surfaces the prep failure.
+        await #expect(throws: (any Error).self) {
+            _ = try await launcher.launch(Program(name: "G", windowsPath: "C:\\g.exe"), in: bottle)
+        }
+    }
 }
 
 @Suite("Launch argument sanitizing")

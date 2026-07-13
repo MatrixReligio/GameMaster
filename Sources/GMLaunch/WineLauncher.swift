@@ -99,6 +99,7 @@ public struct WineLauncher: Sendable {
     /// the caller's running-state tracking then reflects reality.
     @discardableResult
     public func launch(_ program: Program, in bottle: Bottle) async throws -> ProcessResult {
+        try await prepareMetalFXIfNeeded(for: bottle)
         let context = try await context(for: bottle)
         let exe = WindowsPath.toUnix(program.windowsPath, prefix: context.prefix)
         return try await start(
@@ -130,6 +131,7 @@ public struct WineLauncher: Sendable {
         in bottle: Bottle,
         wait: Bool = false
     ) async throws -> ProcessResult {
+        try await prepareMetalFXIfNeeded(for: bottle)
         let context = try await context(for: bottle)
         return try await start(
             exe: exe,
@@ -228,19 +230,28 @@ public struct WineLauncher: Sendable {
         let environment = EnvironmentComposer.environment(for: bottle, prefix: prefix, runtime: descriptor)
         let wineBinary = await runtimeStore.wineBinary(for: descriptor)
         Self.ensureDXMTPrefixSupport(runtime: descriptor, wineBinary: wineBinary, prefix: prefix)
-        // D3DMetal's DLSS-to-MetalFX shims ship disabled (nvngx-on-metalfx.*);
-        // the toggle activates them for this runtime + prefix. DXMT runtimes
-        // handle MetalFX purely via environment, no file preparation. Prep is
-        // non-destructive and idempotent, so let a failure surface instead of
-        // launching with the env claiming MetalFX while the shim never landed.
-        if bottle.settings.metalFX, case .installed = descriptor.gptk {
-            try await MetalFXEnabler(store: runtimeStore).prepare(runtimeID: runtimeID, prefix: prefix)
-        }
         return Context(
             wineBinary: wineBinary,
             prefix: prefix,
             environment: environment
         )
+    }
+
+    /// Activates GPTK's DLSS-to-MetalFX shims (nvngx-on-metalfx.*) for this
+    /// bottle before a program launch. Deliberately NOT part of `context()`:
+    /// stop commands (taskkill, wineserver -k) and wineboot also use `context`,
+    /// and must work even when the MetalFX files are broken — so this throwing
+    /// file prep runs only on the launch/run paths. DXMT handles MetalFX purely
+    /// via environment, so there is nothing to prepare there. Prep is
+    /// non-destructive and idempotent, so a failure surfaces at launch instead
+    /// of running with the env claiming MetalFX while the shim never landed.
+    private func prepareMetalFXIfNeeded(for bottle: Bottle) async throws {
+        guard bottle.settings.metalFX else { return }
+        let runtimeID = bottle.runtimeID ?? defaultRuntimeID
+        guard let descriptor = try await runtimeStore.descriptor(id: runtimeID),
+              case .installed = descriptor.gptk else { return }
+        let prefix = await bottleStore.prefixDirectory(of: bottle)
+        try await MetalFXEnabler(store: runtimeStore).prepare(runtimeID: runtimeID, prefix: prefix)
     }
 
     private func start(
