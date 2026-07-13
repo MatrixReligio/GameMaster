@@ -274,16 +274,20 @@ public final class AppState {
     /// clobber the programs/runtime the install registered.
     public func updateBottle(id: UUID, name: String, settings: BottleSettings) async {
         do {
-            let previousRetina = bottles.first { $0.id == id }?.settings.retinaMode
-            let updated = try await bottleStore.update(id: id) { bottle in
+            // Retina lives in the Wine registry. Registry first, JSON second:
+            // committing JSON before a failing regedit would make the next
+            // same-value save read as "unchanged" and never retry, leaving
+            // the two permanently split. The change check uses the bottle's
+            // current ON-DISK value for the same reason.
+            let current = try await bottleStore.list().first { $0.id == id }
+            if var staged = current, staged.settings.retinaMode != settings.retinaMode {
+                staged.name = name
+                staged.settings = settings
+                try await launcher.applyRetinaRegistry(in: staged)
+            }
+            try await bottleStore.update(id: id) { bottle in
                 bottle.name = name
                 bottle.settings = settings
-            }
-            // Retina lives in the Wine registry (written at bottle creation);
-            // re-apply it when the toggle changed or the saved JSON would
-            // silently disagree with the actual runtime behavior.
-            if let previousRetina, previousRetina != settings.retinaMode {
-                try await launcher.applyRetinaRegistry(in: updated)
             }
             await refresh()
         } catch {

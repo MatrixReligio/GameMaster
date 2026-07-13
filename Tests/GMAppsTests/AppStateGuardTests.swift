@@ -284,6 +284,65 @@ struct AppStateGuardTests {
         #expect(regeditRuns() == before + 1)
     }
 
+    /// A failed regedit must not commit the new retina value to bottle.json —
+    /// a committed JSON makes the next same-value save read as "unchanged"
+    /// and never retry, leaving JSON and the Wine registry permanently split.
+    @Test func retinaRegistryFailureDoesNotCommitJSON() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = FakeRunner()
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: runner)
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        #expect(bottle.settings.retinaMode) // default on
+
+        runner.setExitCode(1) // regedit now fails
+        var settings = bottle.settings
+        settings.retinaMode = false
+        await state.updateBottle(id: bottle.id, name: bottle.name, settings: settings)
+
+        #expect(state.lastErrorMessage != nil)
+        let store = BottleStore(root: dir.appendingPathComponent("approot"))
+        let onDisk = try #require(await store.list().first)
+        #expect(onDisk.settings.retinaMode) // old value — nothing committed
+    }
+
+    /// After a failed regedit, saving the same new value again must retry
+    /// the registry write (and only then commit), even if state was
+    /// refreshed from disk in between.
+    @Test func retinaRetryAfterFailureStillApplies() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = FakeRunner()
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: runner)
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        var settings = bottle.settings
+        settings.retinaMode = false
+
+        runner.setExitCode(1)
+        await state.updateBottle(id: bottle.id, name: bottle.name, settings: settings)
+        #expect(state.lastErrorMessage != nil)
+
+        // Any navigation may reload state from disk before the user retries.
+        await state.refresh()
+        state.lastErrorMessage = nil
+        runner.setExitCode(0)
+        let regeditRuns = { runner.invocations.count { $0.arguments.first == "regedit" } }
+        let before = regeditRuns()
+
+        await state.updateBottle(id: bottle.id, name: bottle.name, settings: settings)
+        #expect(state.lastErrorMessage == nil)
+        #expect(regeditRuns() == before + 1) // registry write retried
+        let store = BottleStore(root: dir.appendingPathComponent("approot"))
+        let onDisk = try #require(await store.list().first)
+        #expect(!onDisk.settings.retinaMode) // now committed
+    }
+
     /// Games survive GameMaster quitting. On relaunch the app must rediscover
     /// bottles whose wineserver is still alive — showing them as running and
     /// refusing deletion — instead of treating them as idle.
