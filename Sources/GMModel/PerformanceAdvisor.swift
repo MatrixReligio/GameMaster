@@ -51,7 +51,11 @@ public enum PerformanceAdvisor {
         settings.retinaMode = false
 
         let scale = hardware.displayScale
-        let isDXMT: Bool = if case .installed = runtime.dxmt { true } else { false }
+        let isDXMT = if case .installed = runtime.dxmt {
+            true
+        } else {
+            false
+        }
 
         // MetalFX only helps when there is a real gap to upscale across (a
         // HiDPI-scaled panel) and the runtime is DXMT — on GPTK the switch means

@@ -294,7 +294,9 @@ struct EnvironmentComposerTests {
     /// factors serialize without a trailing ".0" (2.0 → "2").
     @Test func metalFXFactorGoesToDXMTConfigWhenUpscaling() {
         let env = EnvironmentComposer.environment(
-            for: bottle { $0.metalFX = true; $0.metalFXUpscaleFactor = 1.5 },
+            for: bottle { $0.metalFX = true
+                $0.metalFXUpscaleFactor = 1.5
+            },
             prefix: prefix,
             runtime: dxmtRuntime
         )
@@ -303,7 +305,9 @@ struct EnvironmentComposerTests {
 
     @Test func metalFXFactorIgnoredWhenMetalFXOff() {
         let env = EnvironmentComposer.environment(
-            for: bottle { $0.metalFX = false; $0.metalFXUpscaleFactor = 1.5 },
+            for: bottle { $0.metalFX = false
+                $0.metalFXUpscaleFactor = 1.5
+            },
             prefix: prefix,
             runtime: dxmtRuntime
         )
@@ -323,7 +327,10 @@ struct EnvironmentComposerTests {
     /// deterministic and testable.
     @Test func bothDXMTKnobsComposeSortedAndSemicolonSeparated() {
         let env = EnvironmentComposer.environment(
-            for: bottle { $0.metalFX = true; $0.metalFXUpscaleFactor = 2.0; $0.maxFrameRate = 60 },
+            for: bottle { $0.metalFX = true
+                $0.metalFXUpscaleFactor = 2.0
+                $0.maxFrameRate = 60
+            },
             prefix: prefix,
             runtime: dxmtRuntime
         )
@@ -333,7 +340,10 @@ struct EnvironmentComposerTests {
     /// GPTK bottles don't run DXMT, so its config keys must never be emitted there.
     @Test func gptkRuntimeIgnoresDXMTKnobs() {
         let env = EnvironmentComposer.environment(
-            for: bottle { $0.metalFX = true; $0.metalFXUpscaleFactor = 1.5; $0.maxFrameRate = 90 },
+            for: bottle { $0.metalFX = true
+                $0.metalFXUpscaleFactor = 1.5
+                $0.maxFrameRate = 90
+            },
             prefix: prefix,
             runtime: gptkRuntime
         )
