@@ -181,4 +181,81 @@ struct AppStateRunningStateTests {
         await state.stopProgram(program, in: bottle)
         #expect(!state.isProgramRunning(program, in: bottle))
     }
+
+    /// A Stop that times out (program refuses to die — a save dialog, Steam
+    /// updating) must not leave the card stuck showing "Closing…" with no
+    /// button. After the timeout the program reverts to Running + Stop, its
+    /// closing flag is cleared, and the user is told it's still running.
+    @Test func stopTimeoutRevertsClosingToRunningWithMessage() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let probe = FakeProbe()
+        let runner = GatedLaunchRunner()
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner(),
+            stopProbeTimeoutSeconds: 0.3,
+            activityProbe: probe
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        var bottle = try #require(state.bottles.first)
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+
+        // A program in the bottle's library, currently running: wineserver
+        // alive and launch() suspended at the gated `start /wait`.
+        let program = Program(name: "Game", windowsPath: "C:\\game.exe")
+        let store = BottleStore(root: dir.appendingPathComponent("approot"))
+        try await store.update(id: bottle.id) { $0.programs.append(program) }
+        await state.refresh()
+        bottle = try #require(state.bottles.first)
+        probe.setActive(prefix, true)
+
+        let launchTask = Task { await state.launch(program: program, in: bottle) }
+        while !state.runningIDs.contains(program.id) {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(state.closingIDs.isEmpty)
+
+        // Stop: taskkill returns but the program won't die (probe stays active).
+        state.lastErrorMessage = nil
+        await state.stopProgram(program, in: bottle)
+
+        #expect(state.isProgramRunning(program, in: bottle)) // still running
+        #expect(!state.closingIDs.contains(program.id))      // not stuck "Closing…"
+        #expect(state.lastErrorMessage != nil)               // user is told
+
+        // Cleanup: let the (now unblocked) program exit so launch() returns.
+        probe.setActive(prefix, false)
+        runner.release()
+        await launchTask.value
+    }
+}
+
+/// Runner that blocks the program launch (`start /wait`) until released, so a
+/// test can hold a program "running" while it drives Stop; every other wine
+/// command (taskkill, wineboot, regedit, …) returns immediately.
+private final class GatedLaunchRunner: ProcessRunning, @unchecked Sendable {
+    private let released = Mutex<Bool>(false)
+    func release() { released.withLock { $0 = true } }
+
+    func run(
+        executable: URL,
+        arguments: [String],
+        environment: [String: String]?,
+        currentDirectory: URL?,
+        outputLine: (@Sendable (String) -> Void)?
+    ) async throws -> ProcessResult {
+        if arguments.first == "start" {
+            while !released.withLock({ $0 }) {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+        return ProcessResult(exitCode: 0)
+    }
 }

@@ -562,11 +562,23 @@ public extension AppState {
         }
         if activityProbe.isActive(prefix: prefix) {
             activeBottleIDs.insert(bottle.id)
+            // The stop didn't take (the program is ignoring WM_CLOSE — a save
+            // dialog, Steam updating). Clear the transient "Closing…" flag so
+            // the cards revert to Running + Stop instead of a spinner with no
+            // button, and tell the user the programs are still alive.
+            for program in bottle.programs {
+                closingIDs.remove(program.id)
+            }
+            lastErrorMessage = String(
+                // swiftlint:disable:next line_length
+                localized: "Some programs are still running and could not be stopped. They may be waiting for you to confirm something in their window — handle it and try again, or use Force Stop All."
+            )
         } else {
             activeBottleIDs.remove(bottle.id)
             // Only this bottle's programs stopped — leave other bottles' state.
             for program in bottle.programs {
                 runningIDs.remove(program.id)
+                closingIDs.remove(program.id)
             }
         }
     }
