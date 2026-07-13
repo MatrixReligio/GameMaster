@@ -144,6 +144,31 @@ T = {
     "Close": ("关闭", "關閉", "閉じる", "닫기"),
     "Show in Finder": ("在访达中显示", "在 Finder 中顯示", "Finder に表示", "Finder에서 보기"),
     "Runtime": ("运行时", "執行環境", "ランタイム", "런타임"),
+    "MetalFX quality": ("MetalFX 质量", "MetalFX 品質", "MetalFX 品質", "MetalFX 품질"),
+    "Frame rate limit": ("帧率上限", "幀率上限", "フレームレート上限", "프레임레이트 제한"),
+    "Recommend for this Mac": ("为这台 Mac 推荐", "為這台 Mac 推薦", "この Mac におすすめ", "이 Mac에 맞게 추천"),
+    "Default": ("默认", "預設", "デフォルト", "기본값"),
+    "Uncapped": ("不限", "不限", "制限なし", "무제한"),
+    "Enlarges the game's rendered frame to your display resolution with MetalFX — a spatial upscaler that looks sharper than plain stretching, for a small GPU cost. It does NOT lower the game's own resolution (that's Retina); it makes a lower render resolution look crisp. Best with Retina off. Uses DXMT's upscaler, or converts DLSS on GPTK runtimes.":
+        ("用 MetalFX 把游戏渲染的画面放大到你的显示器分辨率——这是空间放大器，比普通拉伸更清晰，GPU 开销很小。它不会降低游戏自身的分辨率（那是 Retina 的作用），而是让较低的渲染分辨率看起来更锐利。建议配合关闭 Retina 使用。DXMT 运行时用其放大器，GPTK 运行时则转换 DLSS。",
+         "用 MetalFX 把遊戲算繪的畫面放大到你的顯示器解析度——這是空間放大器，比普通拉伸更清晰，GPU 開銷很小。它不會降低遊戲本身的解析度（那是 Retina 的作用），而是讓較低的算繪解析度看起來更銳利。建議搭配關閉 Retina 使用。DXMT 執行階段用其放大器，GPTK 執行階段則轉換 DLSS。",
+         "MetalFX でゲームの描画フレームをディスプレイ解像度まで拡大します。単純な引き伸ばしより鮮明な空間アップスケーラーで、GPU コストはわずかです。ゲーム自体の解像度は下げません（それは Retina の役割）。低い描画解像度をくっきり見せます。Retina オフとの併用がおすすめです。DXMT ではそのアップスケーラーを、GPTK では DLSS を変換します。",
+         "MetalFX로 게임이 렌더링한 프레임을 디스플레이 해상도로 확대합니다. 단순 확대보다 선명한 공간 업스케일러이며 GPU 비용은 적습니다. 게임 자체 해상도를 낮추지는 않으며(그건 Retina의 역할), 낮은 렌더링 해상도를 또렷하게 보이게 합니다. Retina 끄기와 함께 쓰는 것이 가장 좋습니다. DXMT는 자체 업스케일러를, GPTK는 DLSS 변환을 사용합니다."),
+    "How far MetalFX enlarges the frame. A higher factor means the game renders smaller — faster, but softer. 2.0× renders at half your display's width; 1.5× renders closer to native (sharper, heavier). Default (2.0×) follows the runtime.":
+        ("MetalFX 放大画面的倍数。倍数越高，游戏渲染得越小——更快但更糊。2.0× 以显示器宽度的一半渲染；1.5× 更接近原生（更清晰但更吃 GPU）。默认（2.0×）跟随运行时。",
+         "MetalFX 放大畫面的倍數。倍數越高，遊戲算繪得越小——更快但更糊。2.0× 以顯示器寬度的一半算繪；1.5× 更接近原生（更清晰但更吃 GPU）。預設（2.0×）跟隨執行階段。",
+         "MetalFX がフレームを拡大する倍率です。倍率が高いほどゲームは小さく描画され、速いがぼやけます。2.0× はディスプレイ幅の半分で描画し、1.5× はネイティブに近い（鮮明だが重い）です。デフォルト（2.0×）はランタイムに従います。",
+         "MetalFX가 프레임을 확대하는 배율입니다. 배율이 높을수록 게임은 더 작게 렌더링되어 빠르지만 흐려집니다. 2.0×는 디스플레이 너비의 절반으로, 1.5×는 네이티브에 더 가깝게(더 선명하지만 무겁게) 렌더링합니다. 기본값(2.0×)은 런타임을 따릅니다."),
+    "Caps the frame rate, paced by Metal for steadier frame times. Pick a value your Mac can hold steady — ideally a divisor of your display's refresh rate. Uncapped gives the lowest input lag (best for competitive games) at the cost of more heat and fan noise.":
+        ("限制帧率，由 Metal 统一节奏，帧时间更稳。选一个你的 Mac 能稳定维持的值——最好是显示器刷新率的约数。不限帧输入延迟最低（竞技游戏最佳），代价是更热、风扇更响。",
+         "限制幀率，由 Metal 統一節奏，幀時間更穩。選一個你的 Mac 能穩定維持的值——最好是顯示器更新率的約數。不限幀輸入延遲最低（競技遊戲最佳），代價是更熱、風扇更吵。",
+         "フレームレートを制限し、Metal がペースを整えてフレームタイムを安定させます。Mac が安定して維持できる値を選んでください（ディスプレイのリフレッシュレートの約数が理想）。制限なしは入力遅延が最小（競技系に最適）ですが、発熱とファン音が増えます。",
+         "프레임레이트를 제한하며 Metal이 페이스를 조절해 프레임 타임을 안정시킵니다. Mac이 안정적으로 유지할 수 있는 값을 고르세요(디스플레이 주사율의 약수가 이상적). 무제한은 입력 지연이 가장 낮지만(경쟁 게임에 최적) 발열과 팬 소음이 늘어납니다."),
+    "Sets Retina, MetalFX and the upscale factor to values matched to this Mac's display. Nothing is applied until you tap Save, so it never changes a bottle behind your back.":
+        ("把 Retina、MetalFX 和放大倍数设为匹配这台 Mac 显示器的值。点保存前不会生效，绝不会在你不知情时改动瓶子。",
+         "把 Retina、MetalFX 和放大倍數設為匹配這台 Mac 顯示器的值。點儲存前不會生效，絕不會在你不知情時改動瓶子。",
+         "Retina、MetalFX、アップスケール倍率をこの Mac のディスプレイに合わせた値に設定します。保存をタップするまで適用されないので、知らないうちにボトルが変わることはありません。",
+         "Retina, MetalFX, 업스케일 배율을 이 Mac의 디스플레이에 맞는 값으로 설정합니다. 저장을 누르기 전에는 적용되지 않으므로 모르는 사이에 보틀이 바뀌지 않습니다."),
 }
 
 LANGS = ["zh-Hans", "zh-Hant", "ja", "ko"]

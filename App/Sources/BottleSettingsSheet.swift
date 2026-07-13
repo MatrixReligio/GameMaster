@@ -58,6 +58,10 @@ struct BottleSettingsSheet: View {
                         Toggle(String(localized: "Retina resolution"), isOn: $draft.settings.retinaMode)
                         InfoButton(text: SettingsHelp.retina)
                     }
+                    HStack {
+                        Button(String(localized: "Recommend for this Mac")) { applyRecommendation() }
+                        InfoButton(text: SettingsHelp.recommend)
+                    }
                 }
 
                 Section(String(localized: "Graphics")) {
@@ -73,6 +77,35 @@ struct BottleSettingsSheet: View {
                     HStack {
                         Toggle(String(localized: "MetalFX upscaling"), isOn: $draft.settings.metalFX)
                         InfoButton(text: SettingsHelp.metalFX)
+                    }
+                    // DXMT-only tuning: the factor and frame cap are DXMT_CONFIG
+                    // keys, so they'd do nothing on a D3DMetal (GPTK) bottle.
+                    if runtimeUsesDXMT {
+                        if draft.settings.metalFX {
+                            HStack {
+                                Picker(
+                                    String(localized: "MetalFX quality"),
+                                    selection: $draft.settings.metalFXUpscaleFactor
+                                ) {
+                                    Text(String(localized: "Default")).tag(Double?.none)
+                                    Text(verbatim: "1.5×").tag(Double?(1.5))
+                                    Text(verbatim: "2.0×").tag(Double?(2.0))
+                                }
+                                InfoButton(text: SettingsHelp.metalFXQuality)
+                            }
+                        }
+                        HStack {
+                            Picker(
+                                String(localized: "Frame rate limit"),
+                                selection: $draft.settings.maxFrameRate
+                            ) {
+                                Text(String(localized: "Uncapped")).tag(Int?.none)
+                                Text(verbatim: "60").tag(Int?(60))
+                                Text(verbatim: "120").tag(Int?(120))
+                                Text(verbatim: "240").tag(Int?(240))
+                            }
+                            InfoButton(text: SettingsHelp.frameRate)
+                        }
                     }
                 }
 
@@ -170,6 +203,17 @@ struct BottleSettingsSheet: View {
         )
     }
 
+    /// Fills the draft with settings tuned to this Mac's display. Only the draft
+    /// changes; the bottle is written when the user taps Save, so existing
+    /// bottles are never altered behind their back.
+    private func applyRecommendation() {
+        Task {
+            if let recommended = await appState.recommendedSettings(for: draft) {
+                draft.settings = recommended
+            }
+        }
+    }
+
     private func save() {
         var env: [String: String] = [:]
         for line in extraEnvText.split(separator: "\n") {
@@ -215,7 +259,19 @@ private enum SettingsHelp {
         )
     static let metalFX =
         String(
-            localized: "Renders internally at a lower resolution and upscales the output with MetalFX. Big FPS gain for a small sharpness cost. Uses DXMT's spatial upscaler, or converts DLSS calls on GPTK runtimes."
+            localized: "Enlarges the game's rendered frame to your display resolution with MetalFX — a spatial upscaler that looks sharper than plain stretching, for a small GPU cost. It does NOT lower the game's own resolution (that's Retina); it makes a lower render resolution look crisp. Best with Retina off. Uses DXMT's upscaler, or converts DLSS on GPTK runtimes."
+        )
+    static let metalFXQuality =
+        String(
+            localized: "How far MetalFX enlarges the frame. A higher factor means the game renders smaller — faster, but softer. 2.0× renders at half your display's width; 1.5× renders closer to native (sharper, heavier). Default (2.0×) follows the runtime."
+        )
+    static let frameRate =
+        String(
+            localized: "Caps the frame rate, paced by Metal for steadier frame times. Pick a value your Mac can hold steady — ideally a divisor of your display's refresh rate. Uncapped gives the lowest input lag (best for competitive games) at the cost of more heat and fan noise."
+        )
+    static let recommend =
+        String(
+            localized: "Sets Retina, MetalFX and the upscale factor to values matched to this Mac's display. Nothing is applied until you tap Save, so it never changes a bottle behind your back."
         )
     static let sync =
         String(
