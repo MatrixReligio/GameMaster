@@ -50,22 +50,31 @@ public final class FakeRunner: ProcessRunning, Sendable {
         currentDirectory _: URL?,
         outputLine: (@Sendable (String) -> Void)?
     ) async throws -> ProcessResult {
-        let (script, code, delay) = state.withLock { state -> ([String], Int32, UInt64) in
+        struct Response {
+            var script: [String]
+            var exitCode: Int32
+            var delayNanoseconds: UInt64
+        }
+        let response = state.withLock { state -> Response in
             state.invocations.append(Invocation(
                 executable: executable.path,
                 arguments: arguments,
                 environment: environment
             ))
             let script = state.stdoutScripts.isEmpty ? [] : state.stdoutScripts.removeFirst()
-            return (script, state.exitCode, state.delayNanoseconds)
+            return Response(
+                script: script,
+                exitCode: state.exitCode,
+                delayNanoseconds: state.delayNanoseconds
+            )
         }
-        if delay > 0 {
-            try await Task.sleep(nanoseconds: delay)
+        if response.delayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: response.delayNanoseconds)
         }
-        for line in script {
+        for line in response.script {
             outputLine?(line)
         }
-        return ProcessResult(exitCode: code)
+        return ProcessResult(exitCode: response.exitCode)
     }
 }
 

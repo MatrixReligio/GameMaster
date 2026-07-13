@@ -138,17 +138,16 @@ struct GPTKImportPanel: View {
     /// An auto-detected candidate awaiting explicit confirmation. Detection
     /// matches by file name, so anything in ~/Downloads could be offered —
     /// the user must see exactly WHICH file before code gets imported.
-    struct PendingImport: Identifiable {
-        enum Source {
-            case mountedVolume(URL)
-            case dmg(URL)
+    enum PendingImport: Identifiable {
+        case mountedVolume(URL)
+        case dmg(URL)
+
+        var id: String {
+            url.path
         }
 
-        let source: Source
-
-        var id: String { url.path }
         var url: URL {
-            switch source {
+            switch self {
             case let .mountedVolume(url), let .dmg(url): url
             }
         }
@@ -238,9 +237,9 @@ struct GPTKImportPanel: View {
     /// detection is name-based, and the import copies executable code.
     private func detectOrPick() {
         if let volume = appState.gptkDetector.candidateMountedVolumes().first {
-            pendingImport = PendingImport(source: .mountedVolume(volume))
+            pendingImport = .mountedVolume(volume)
         } else if let dmg = appState.gptkDetector.candidateDMGs().first {
-            pendingImport = PendingImport(source: .dmg(dmg))
+            pendingImport = .dmg(dmg)
         } else {
             showPicker = true
         }
@@ -249,7 +248,7 @@ struct GPTKImportPanel: View {
     private func run(_ pending: PendingImport) {
         importing = true
         Task {
-            switch pending.source {
+            switch pending {
             case let .mountedVolume(volume):
                 await appState.importGPTK(mountedVolume: volume)
             case let .dmg(dmg):

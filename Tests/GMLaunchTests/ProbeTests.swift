@@ -46,7 +46,7 @@ struct WineServerProbeTests {
 
     /// Live path: another process holds an exclusive lock on the lock file
     /// (what a running wineserver does) → active; lock released → inactive.
-    @Test func detectsLiveLockHolder() async throws {
+    @Test func detectsLiveLockHolder() throws {
         let root = try tempDir()
         defer { try? FileManager.default.removeItem(at: root) }
         let prefix = root.appendingPathComponent("prefix")
@@ -61,15 +61,16 @@ struct WineServerProbeTests {
 
         // A child process takes the exclusive lock, prints, and sleeps —
         // standing in for a live wineserver.
-        let holder = Process()
-        holder.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-        holder.arguments = ["-c", """
+        let holderScript = """
         import fcntl, sys, time
         f = open(sys.argv[1], "w")
         fcntl.lockf(f, fcntl.LOCK_EX)
         print("locked", flush=True)
         time.sleep(60)
-        """, lock.path]
+        """
+        let holder = Process()
+        holder.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        holder.arguments = ["-c", holderScript, lock.path]
         let out = Pipe()
         holder.standardOutput = out
         try holder.run()

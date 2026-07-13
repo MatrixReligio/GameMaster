@@ -153,7 +153,8 @@ public final class AppState {
             activeBottleIDs = active
             if !listing.corruptFiles.isEmpty {
                 lastErrorMessage = String(
-                    localized: "\(listing.corruptFiles.count) bottle(s) have unreadable metadata and are hidden. Their files remain on disk untouched."
+                    // swiftlint:disable:next line_length
+                    localized: "Some bottles have unreadable metadata and are hidden. Their files remain on disk untouched."
                 )
             }
             if case .installing = runtimeStatus {
@@ -359,8 +360,12 @@ public final class AppState {
             bottleDirectory: bottleDirectory
         )
     }
+}
 
-    public func launch(program: Program, in bottle: Bottle) async {
+// MARK: - Launching, stopping, and runtime queries
+
+public extension AppState {
+    func launch(program: Program, in bottle: Bottle) async {
         runningIDs.insert(program.id)
         // "Launching" spans the click until the program's window appears (or a
         // safety timeout) — Steam's cold start under Wine takes tens of seconds,
@@ -396,14 +401,14 @@ public final class AppState {
 
     /// Called by the app layer once the program's window is visible, to end the
     /// "launching" spinner. No-op if already ended (timeout or exit).
-    public func markProgramWindowReady(_ programID: UUID) {
+    func markProgramWindowReady(_ programID: UUID) {
         launchingIDs.remove(programID)
     }
 
     /// Called by the app layer when the program's window has closed while its
     /// process is still exiting, so the card can show "Closing…" until the
     /// `launch` call returns.
-    public func markProgramClosing(_ programID: UUID) {
+    func markProgramClosing(_ programID: UUID) {
         guard runningIDs.contains(programID) else { return }
         launchingIDs.remove(programID)
         closingIDs.insert(programID)
@@ -460,7 +465,7 @@ public final class AppState {
     /// everything else receives WM_CLOSE via taskkill, the same as clicking
     /// the window's close button. The card shows "Closing…" until the
     /// program's `launch` call returns.
-    public func stopProgram(_ program: Program, in bottle: Bottle) async {
+    func stopProgram(_ program: Program, in bottle: Bottle) async {
         markProgramClosing(program.id)
         do {
             if let entry = catalog.entries.first(where: {
@@ -479,7 +484,7 @@ public final class AppState {
         }
     }
 
-    public func runExe(_ exe: URL, in bottle: Bottle) async {
+    func runExe(_ exe: URL, in bottle: Bottle) async {
         do {
             // Fire-and-forget: the result is wine's `start` helper, which
             // exits nonzero exactly when the program could not be launched.
@@ -495,7 +500,7 @@ public final class AppState {
         }
     }
 
-    public func stopAll(in bottle: Bottle) async {
+    func stopAll(in bottle: Bottle) async {
         do {
             try await launcher.stopAll(in: bottle)
         } catch {
@@ -507,10 +512,24 @@ public final class AppState {
         }
     }
 
+    /// Whether the bottle's runtime translates D3D via DXMT builtins. DXMT is
+    /// installed INTO wine (replacing d3d11/dxgi), so unlike D3DMetal there is
+    /// no environment switch that turns it off — the settings sheet hides the
+    /// "Off" choice for these bottles instead of offering a dead toggle.
+    func bottleUsesDXMTRuntime(_ bottle: Bottle) async -> Bool {
+        let id = bottle.runtimeID ?? manifest.defaultRuntimeID
+        guard let descriptor = try? await runtimeStore.descriptor(id: id),
+              case .installed = descriptor.dxmt
+        else {
+            return false
+        }
+        return true
+    }
+
     // MARK: - Environment checks
 
     /// Rosetta 2 must be installed for the x86_64 wine runtime.
-    public func rosettaInstalled() async -> Bool {
+    func rosettaInstalled() async -> Bool {
         let result = try? await runner.run(
             executable: URL(fileURLWithPath: "/usr/bin/pgrep"),
             arguments: ["-q", "oahd"],

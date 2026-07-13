@@ -33,6 +33,9 @@ struct BottleSettingsSheet: View {
 
     @State private var draft: Bottle
     @State private var extraEnvText: String
+    /// DXMT ships as wine builtins — no setting can disable it, so the "Off"
+    /// choice is hidden for DXMT bottles instead of silently doing nothing.
+    @State private var runtimeUsesDXMT = false
 
     init(bottle: Bottle) {
         _draft = State(initialValue: bottle)
@@ -60,9 +63,11 @@ struct BottleSettingsSheet: View {
                     HStack {
                         Picker(String(localized: "DirectX translation"), selection: $draft.settings.dxBackend) {
                             Text(String(localized: "Automatic (recommended)")).tag(DXBackend.auto)
-                            Text(String(localized: "Off")).tag(DXBackend.off)
+                            if !runtimeUsesDXMT {
+                                Text(String(localized: "Off")).tag(DXBackend.off)
+                            }
                         }
-                        InfoButton(text: SettingsHelp.directX)
+                        InfoButton(text: runtimeUsesDXMT ? SettingsHelp.directXDXMT : SettingsHelp.directX)
                     }
                     HStack {
                         Toggle(String(localized: "MetalFX upscaling"), isOn: $draft.settings.metalFX)
@@ -125,6 +130,14 @@ struct BottleSettingsSheet: View {
             .padding(16)
         }
         .frame(width: 460, height: 480)
+        .task {
+            runtimeUsesDXMT = await appState.bottleUsesDXMTRuntime(draft)
+            // A saved-but-ineffective Off from before the option was hidden
+            // (or from a runtime switch) is normalized back to Automatic.
+            if runtimeUsesDXMT, draft.settings.dxBackend == .off {
+                draft.settings.dxBackend = .auto
+            }
+        }
     }
 
     private var dxrBinding: Binding<Int> {
@@ -175,7 +188,11 @@ private enum SettingsHelp {
         )
     static let directX =
         String(
-            localized: "Automatic routes Direct3D through the runtime's Metal layer (D3DMetal on GPTK runtimes, DXMT otherwise). Off falls back to Wine's OpenGL path — only useful for troubleshooting."
+            localized: "Automatic routes Direct3D through the runtime's D3DMetal layer. Off disables it and falls back to Wine's OpenGL path — only useful for troubleshooting."
+        )
+    static let directXDXMT =
+        String(
+            localized: "This bottle's runtime translates Direct3D to Metal with DXMT, which is built into Wine itself and is always active — that's why there is no Off choice here."
         )
     static let metalFX =
         String(

@@ -105,7 +105,12 @@ struct GPTKImporterTests {
         _ = try await installFakeRuntime(store: store, id: "rt")
 
         let mounter = FakeMounter(mountPoint: volume)
-        let importer = GPTKImporter(store: store, mounter: mounter, runner: SubprocessRunner(), verifier: FakeVerifier())
+        let importer = GPTKImporter(
+            store: store,
+            mounter: mounter,
+            runner: SubprocessRunner(),
+            verifier: FakeVerifier()
+        )
         let descriptor = try await importer.importGPTK(
             dmg: URL(fileURLWithPath: "/tmp/Evaluation_environment_for_Windows_games_3.0.dmg"),
             into: "rt"
@@ -200,7 +205,12 @@ struct GPTKImporterTests {
         _ = try await installFakeRuntime(store: store, id: "rt")
 
         let mounter = FakeMounter(mountPoint: bogusVolume)
-        let importer = GPTKImporter(store: store, mounter: mounter, runner: SubprocessRunner(), verifier: FakeVerifier())
+        let importer = GPTKImporter(
+            store: store,
+            mounter: mounter,
+            runner: SubprocessRunner(),
+            verifier: FakeVerifier()
+        )
         await #expect(throws: RuntimeError.dmgLayoutUnrecognized) {
             _ = try await importer.importGPTK(dmg: URL(fileURLWithPath: "/tmp/other.dmg"), into: "rt")
         }

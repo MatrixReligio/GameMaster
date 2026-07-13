@@ -3,18 +3,6 @@
   "strings": {
     "%@ could not reach its download servers. Check your network or proxy, then try again.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 无法连接到其下载服务器。请检查网络或代理后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 無法連接到其下載伺服器。請檢查網路或代理後重試。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -26,23 +14,23 @@
             "state": "translated",
             "value": "%@이(가) 다운로드 서버에 연결할 수 없습니다. 네트워크 또는 프록시를 확인한 후 다시 시도하세요."
           }
-        }
-      }
-    },
-    "%@ did not finish downloading in time. Check your connection and try again.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 未能在预期时间内完成下载。请检查网络连接后重试。"
+            "value": "%@ 无法连接到其下载服务器。请检查网络或代理后重试。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 未能在預期時間內完成下載。請檢查網路連線後重試。"
+            "value": "%@ 無法連接到其下載伺服器。請檢查網路或代理後重試。"
           }
-        },
+        }
+      }
+    },
+    "%@ did not finish downloading in time. Check your connection and try again.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -53,6 +41,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@이(가) 제시간에 다운로드를 완료하지 못했습니다. 네트워크 연결을 확인한 후 다시 시도하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 未能在预期时间内完成下载。请检查网络连接后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 未能在預期時間內完成下載。請檢查網路連線後重試。"
           }
         }
       }
@@ -143,18 +143,6 @@
     },
     "Advertises AVX/AVX2 CPU support so games pick their optimized code paths (Rosetta translates AVX on macOS 15+). Disable if a game probes AVX-512 and crashes at launch.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "向游戏声明 CPU 支持 AVX/AVX2，使其启用优化代码路径（macOS 15+ 的 Rosetta 可翻译 AVX）。若游戏探测 AVX-512 导致启动崩溃，请关闭。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "向遊戲聲明 CPU 支援 AVX/AVX2，使其啟用最佳化程式碼路徑（macOS 15+ 的 Rosetta 可轉譯 AVX）。若遊戲偵測 AVX-512 導致啟動當機，請關閉。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -165,6 +153,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "CPU가 AVX/AVX2를 지원한다고 게임에 알려 최적화된 코드 경로를 사용하게 합니다(macOS 15+의 Rosetta가 AVX를 변환). 게임이 AVX-512를 감지해 실행 시 충돌하면 끄세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向游戏声明 CPU 支持 AVX/AVX2，使其启用优化代码路径（macOS 15+ 的 Rosetta 可翻译 AVX）。若游戏探测 AVX-512 导致启动崩溃，请关闭。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向遊戲聲明 CPU 支援 AVX/AVX2，使其啟用最佳化程式碼路徑（macOS 15+ 的 Rosetta 可轉譯 AVX）。若遊戲偵測 AVX-512 導致啟動當機，請關閉。"
           }
         }
       }
@@ -225,30 +225,30 @@
         }
       }
     },
-    "Automatic routes Direct3D through the runtime's Metal layer (D3DMetal on GPTK runtimes, DXMT otherwise). Off falls back to Wine's OpenGL path — only useful for troubleshooting.": {
+    "Automatic routes Direct3D through the runtime's D3DMetal layer. Off disables it and falls back to Wine's OpenGL path — only useful for troubleshooting.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“自动”将 Direct3D 通过运行时自带的 Metal 层转换（GPTK 运行时用 D3DMetal，其余用 DXMT）。“关闭”回退到 Wine 的 OpenGL 路径——仅用于排查问题。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「自動」將 Direct3D 透過執行階段內建的 Metal 層轉換（GPTK 執行階段用 D3DMetal，其餘用 DXMT）。「關閉」回退到 Wine 的 OpenGL 路徑——僅用於排查問題。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "「自動」はランタイムの Metal レイヤー（GPTK ランタイムでは D3DMetal、それ以外は DXMT）で Direct3D を変換します。「オフ」は Wine の OpenGL パスにフォールバックします（トラブルシューティング用）。"
+            "value": "「自動」は Direct3D をランタイムの D3DMetal レイヤー経由で変換します。「オフ」はこれを無効化し、Wine の OpenGL パスにフォールバックします。トラブルシューティング専用です。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "'자동'은 런타임의 Metal 레이어(GPTK 런타임은 D3DMetal, 그 외는 DXMT)로 Direct3D를 변환합니다. '끔'은 Wine의 OpenGL 경로로 대체됩니다(문제 해결용)."
+            "value": "'자동'은 Direct3D를 런타임의 D3DMetal 레이어를 통해 변환합니다. '끄기'는 이를 비활성화하고 Wine의 OpenGL 경로로 대체합니다. 문제 해결 시에만 사용하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「自动」将 Direct3D 经由运行时的 D3DMetal 层转换。「关闭」会禁用它并回退到 Wine 的 OpenGL 路径——仅用于排查问题。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「自動」將 Direct3D 經由執行階段的 D3DMetal 層轉換。「關閉」會停用它並回退到 Wine 的 OpenGL 路徑——僅用於排查問題。"
           }
         }
       }
@@ -283,18 +283,6 @@
     },
     "Bottle name": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "游戏瓶名称"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "遊戲瓶名稱"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -305,6 +293,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "보틀 이름"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "游戏瓶名称"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "遊戲瓶名稱"
           }
         }
       }
@@ -389,6 +389,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "檢查更新…"
+          }
+        }
+      }
+    },
+    "Choose Another File…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別のファイルを選択…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 파일 선택…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择其他文件…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇其他檔案…"
           }
         }
       }
@@ -507,18 +535,6 @@
     },
     "Could not open the disk image (hdiutil exit %@).": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法打开磁盘映像（hdiutil 退出码 %@）。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法打開磁碟映像檔（hdiutil 結束代碼 %@）。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -530,23 +546,23 @@
             "state": "translated",
             "value": "디스크 이미지를 열 수 없습니다(hdiutil 종료 코드 %@)."
           }
-        }
-      }
-    },
-    "Could not unpack the archive (tar exit %@).": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法解压归档（tar 退出码 %@）。"
+            "value": "无法打开磁盘映像（hdiutil 退出码 %@）。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法解壓縮封存檔（tar 結束代碼 %@）。"
+            "value": "無法打開磁碟映像檔（hdiutil 結束代碼 %@）。"
           }
-        },
+        }
+      }
+    },
+    "Could not unpack the archive (tar exit %@).": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -557,6 +573,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "아카이브를 풀 수 없습니다(tar 종료 코드 %@)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法解压归档（tar 退出码 %@）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法解壓縮封存檔（tar 結束代碼 %@）。"
           }
         }
       }
@@ -899,18 +927,6 @@
     },
     "Download failed with HTTP status %@.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下载失败（HTTP 状态码 %@）。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下載失敗（HTTP 狀態碼 %@）。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -921,6 +937,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "다운로드에 실패했습니다(HTTP 상태 %@)."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载失败（HTTP 状态码 %@）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下載失敗（HTTP 狀態碼 %@）。"
           }
         }
       }
@@ -1067,18 +1095,6 @@
     },
     "Forces DirectX Raytracing on or off for D3DMetal (GPTK runtimes only). Automatic follows Apple's default: off on M1/M2, on for M3 and newer.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "强制开启或关闭 D3DMetal 的 DirectX 光线追踪（仅 GPTK 运行时有效）。“自动”遵循 Apple 默认值：M1/M2 关闭，M3 及更新芯片开启。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "強制開啟或關閉 D3DMetal 的 DirectX 光線追蹤（僅 GPTK 執行階段有效）。「自動」遵循 Apple 預設值：M1/M2 關閉，M3 及更新晶片開啟。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -1089,6 +1105,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "D3DMetal의 DirectX 레이 트레이싱을 강제로 켜거나 끕니다(GPTK 런타임 전용). '자동'은 Apple 기본값을 따릅니다: M1/M2는 끔, M3 이상은 켬."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强制开启或关闭 D3DMetal 的 DirectX 光线追踪（仅 GPTK 运行时有效）。“自动”遵循 Apple 默认值：M1/M2 关闭，M3 及更新芯片开启。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "強制開啟或關閉 D3DMetal 的 DirectX 光線追蹤（僅 GPTK 執行階段有效）。「自動」遵循 Apple 預設值：M1/M2 關閉，M3 及更新晶片開啟。"
           }
         }
       }
@@ -1123,18 +1151,6 @@
     },
     "GameMaster needs to relaunch for the language change to take effect.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "语言更改需要重新启动 GameMaster 后生效。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "語言變更需要重新啟動 GameMaster 後生效。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -1146,23 +1162,23 @@
             "state": "translated",
             "value": "언어 변경을 적용하려면 GameMaster를 다시 시작해야 합니다."
           }
-        }
-      }
-    },
-    "General": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "通用"
+            "value": "语言更改需要重新启动 GameMaster 后生效。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "一般"
+            "value": "語言變更需要重新啟動 GameMaster 後生效。"
           }
-        },
+        }
+      }
+    },
+    "General": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -1173,6 +1189,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "일반"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一般"
           }
         }
       }
@@ -1207,18 +1235,6 @@
     },
     "How Wine emulates Windows thread synchronization. MSync (Mach ports) is fastest on runtimes that support it; ESync works everywhere; None is slowest and only for debugging.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wine 模拟 Windows 线程同步的方式。MSync（Mach 端口）在支持它的运行时上最快；ESync 通用；“无”最慢，仅用于调试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wine 模擬 Windows 執行緒同步的方式。MSync（Mach 埠）在支援它的執行階段上最快；ESync 通用；「無」最慢，僅用於除錯。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -1229,6 +1245,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wine이 Windows 스레드 동기화를 에뮬레이션하는 방식입니다. MSync(Mach 포트)는 지원 런타임에서 가장 빠르고, ESync는 어디서나 작동하며, '없음'은 가장 느리고 디버깅용입니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wine 模拟 Windows 线程同步的方式。MSync（Mach 端口）在支持它的运行时上最快；ESync 通用；“无”最慢，仅用于调试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wine 模擬 Windows 執行緒同步的方式。MSync（Mach 埠）在支援它的執行階段上最快；ESync 通用；「無」最慢，僅用於除錯。"
           }
         }
       }
@@ -1257,6 +1285,62 @@
           "stringUnit": {
             "state": "translated",
             "value": "要如何開啟這個程式？"
+          }
+        }
+      }
+    },
+    "Import": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み込む"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가져오기"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入"
+          }
+        }
+      }
+    },
+    "Import Apple's graphics libraries from this file?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このファイルから Apple のグラフィックライブラリを読み込みますか？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 파일에서 Apple 그래픽 라이브러리를 가져올까요?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从这个文件导入 Apple 图形库？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從這個檔案匯入 Apple 圖形程式庫？"
           }
         }
       }
@@ -1431,18 +1515,6 @@
     },
     "Language": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "语言"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "語言"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -1453,6 +1525,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "언어"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语言"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "語言"
           }
         }
       }
@@ -1515,18 +1599,6 @@
     },
     "MSync (fastest)": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MSync（最快）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MSync（最快）"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -1537,6 +1609,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "MSync(가장 빠름)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MSync（最快）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MSync（最快）"
           }
         }
       }
@@ -1571,18 +1655,6 @@
     },
     "MetalFX upscaling": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MetalFX 升频"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MetalFX 升頻"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -1593,6 +1665,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "MetalFX 업스케일링"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MetalFX 升频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MetalFX 升頻"
           }
         }
       }
@@ -1627,18 +1711,6 @@
     },
     "Name": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "名称"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "名稱"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -1649,6 +1721,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "이름"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名称"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名稱"
           }
         }
       }
@@ -1739,18 +1823,6 @@
     },
     "No runtime is configured for this build.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此构建未配置任何运行时。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此版本未設定任何執行階段。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -1761,6 +1833,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 빌드에는 런타임이 구성되어 있지 않습니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此构建未配置任何运行时。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本未設定任何執行階段。"
           }
         }
       }
@@ -2047,18 +2131,6 @@
     },
     "Relaunch": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新启动"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新啟動"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2069,6 +2141,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "다시 시작"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新啟動"
           }
         }
       }
@@ -2103,18 +2187,6 @@
     },
     "Renders at full HiDPI pixel density with matching Windows DPI. Sharper picture, but games draw up to 4× the pixels — turn it off for extra FPS.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "以完整 HiDPI 像素密度渲染并匹配 Windows DPI。画面更清晰，但游戏渲染的像素最多可达 4 倍——关闭可换取更高帧率。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "以完整 HiDPI 像素密度算繪並匹配 Windows DPI。畫面更清晰，但遊戲算繪的像素最多可達 4 倍——關閉可換取更高幀率。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2126,23 +2198,23 @@
             "state": "translated",
             "value": "HiDPI 전체 픽셀 밀도로 렌더링하고 Windows DPI를 일치시킵니다. 화면은 더 선명해지지만 게임이 그리는 픽셀이 최대 4배가 됩니다. FPS를 높이려면 끄세요."
           }
-        }
-      }
-    },
-    "Renders internally at a lower resolution and upscales the output with MetalFX. Big FPS gain for a small sharpness cost. Uses DXMT's spatial upscaler, or converts DLSS calls on GPTK runtimes.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "以较低的内部分辨率渲染，再用 MetalFX 放大输出。大幅提升帧率，仅轻微损失锐度。DXMT 运行时使用其空间放大器，GPTK 运行时则转换 DLSS 调用。"
+            "value": "以完整 HiDPI 像素密度渲染并匹配 Windows DPI。画面更清晰，但游戏渲染的像素最多可达 4 倍——关闭可换取更高帧率。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "以較低的內部解析度算繪，再用 MetalFX 放大輸出。大幅提升幀率，僅輕微損失銳利度。DXMT 執行階段使用其空間放大器，GPTK 執行階段則轉換 DLSS 呼叫。"
+            "value": "以完整 HiDPI 像素密度算繪並匹配 Windows DPI。畫面更清晰，但遊戲算繪的像素最多可達 4 倍——關閉可換取更高幀率。"
           }
-        },
+        }
+      }
+    },
+    "Renders internally at a lower resolution and upscales the output with MetalFX. Big FPS gain for a small sharpness cost. Uses DXMT's spatial upscaler, or converts DLSS calls on GPTK runtimes.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2153,6 +2225,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "내부적으로 낮은 해상도로 렌더링한 뒤 MetalFX로 출력을 업스케일합니다. 약간의 선명도 손실로 FPS가 크게 향상됩니다. DXMT 런타임은 공간 업스케일러를, GPTK는 DLSS 호출 변환을 사용합니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以较低的内部分辨率渲染，再用 MetalFX 放大输出。大幅提升帧率，仅轻微损失锐度。DXMT 运行时使用其空间放大器，GPTK 运行时则转换 DLSS 调用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以較低的內部解析度算繪，再用 MetalFX 放大輸出。大幅提升幀率，僅輕微損失銳利度。DXMT 執行階段使用其空間放大器，GPTK 執行階段則轉換 DLSS 呼叫。"
           }
         }
       }
@@ -2411,18 +2495,6 @@
     },
     "Runtime “%@” is not installed.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "运行时“%@”未安装。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "執行階段「%@」未安裝。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2433,6 +2505,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "런타임 \"%@\"이(가) 설치되어 있지 않습니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行时“%@”未安装。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "執行階段「%@」未安裝。"
           }
         }
       }
@@ -2523,18 +2607,6 @@
     },
     "Shows Apple's Metal performance HUD (FPS, GPU time, resolution) over every window in this bottle.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在此游戏瓶的每个窗口上显示 Apple 的 Metal 性能 HUD（帧率、GPU 耗时、分辨率）。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在此遊戲瓶的每個視窗上顯示 Apple 的 Metal 效能 HUD（幀率、GPU 耗時、解析度）。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2545,6 +2617,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "이 보틀의 모든 창 위에 Apple의 Metal 성능 HUD(FPS, GPU 시간, 해상도)를 표시합니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此游戏瓶的每个窗口上显示 Apple 的 Metal 性能 HUD（帧率、GPU 耗时、分辨率）。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此遊戲瓶的每個視窗上顯示 Apple 的 Metal 效能 HUD（幀率、GPU 耗時、解析度）。"
           }
         }
       }
@@ -2573,6 +2657,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "暫時略過"
+          }
+        }
+      }
+    },
+    "Some bottles have unreadable metadata and are hidden. Their files remain on disk untouched.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一部のボトルのメタデータが読み取れないため非表示になっています。ファイルはディスク上にそのまま残っています。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "일부 보틀의 메타데이터를 읽을 수 없어 숨겨졌습니다. 해당 파일은 디스크에 그대로 남아 있습니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分游戏瓶的元数据无法读取，已被隐藏。相关文件仍完整保留在磁盘上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分遊戲瓶的中繼資料無法讀取，已被隱藏。相關檔案仍完整保留在磁碟上。"
           }
         }
       }
@@ -2635,18 +2747,6 @@
     },
     "Stop": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2657,6 +2757,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "중지"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
           }
         }
       }
@@ -2691,18 +2803,6 @@
     },
     "System Default": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "跟随系统"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "跟隨系統"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2713,6 +2813,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "시스템 기본값"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随系统"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟隨系統"
           }
         }
       }
@@ -2747,18 +2859,6 @@
     },
     "The %@ installer failed (exit code %@). Please try again.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 安装程序失败（退出码 %@）。请重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ 安裝程式失敗（結束代碼 %@）。請重試。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2770,23 +2870,23 @@
             "state": "translated",
             "value": "%@ 설치 프로그램이 실패했습니다(종료 코드 %@). 다시 시도하세요."
           }
-        }
-      }
-    },
-    "The %@ installer finished but the program wasn't found. Please try again.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 安装程序已结束，但未找到安装后的程序。请重试。"
+            "value": "%@ 安装程序失败（退出码 %@）。请重试。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ 安裝程式已結束，但未找到安裝後的程式。請重試。"
+            "value": "%@ 安裝程式失敗（結束代碼 %@）。請重試。"
           }
-        },
+        }
+      }
+    },
+    "The %@ installer finished but the program wasn't found. Please try again.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2798,23 +2898,23 @@
             "state": "translated",
             "value": "%@ 설치가 끝났지만 프로그램을 찾을 수 없습니다. 다시 시도하세요."
           }
-        }
-      }
-    },
-    "The Windows runtime is not installed yet. Open Settings → Runtime to install it.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Windows 运行时尚未安装。请打开“设置 → 运行时”进行安装。"
+            "value": "%@ 安装程序已结束，但未找到安装后的程序。请重试。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Windows 執行階段尚未安裝。請打開「設定 → 執行階段」進行安裝。"
+            "value": "%@ 安裝程式已結束，但未找到安裝後的程式。請重試。"
           }
-        },
+        }
+      }
+    },
+    "The Windows runtime is not installed yet. Open Settings → Runtime to install it.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2826,23 +2926,23 @@
             "state": "translated",
             "value": "Windows 런타임이 아직 설치되지 않았습니다. '설정 → 런타임'에서 설치하세요."
           }
-        }
-      }
-    },
-    "The built-in runtime manifest is missing or corrupted.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "内置运行时清单缺失或已损坏。"
+            "value": "Windows 运行时尚未安装。请打开“设置 → 运行时”进行安装。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "內建執行階段清單遺失或已損毀。"
+            "value": "Windows 執行階段尚未安裝。請打開「設定 → 執行階段」進行安裝。"
           }
-        },
+        }
+      }
+    },
+    "The built-in runtime manifest is missing or corrupted.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2854,23 +2954,23 @@
             "state": "translated",
             "value": "내장 런타임 매니페스트가 없거나 손상되었습니다."
           }
-        }
-      }
-    },
-    "The disk image did not produce a mountable volume.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "磁盘映像未产生可挂载的卷。"
+            "value": "内置运行时清单缺失或已损坏。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "磁碟映像檔未產生可掛載的卷宗。"
+            "value": "內建執行階段清單遺失或已損毀。"
           }
-        },
+        }
+      }
+    },
+    "The disk image did not produce a mountable volume.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2882,23 +2982,23 @@
             "state": "translated",
             "value": "디스크 이미지에서 마운트 가능한 볼륨을 만들지 못했습니다."
           }
-        }
-      }
-    },
-    "The downloaded file failed verification. Please try downloading again.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "下载的文件未通过校验。请重新下载。"
+            "value": "磁盘映像未产生可挂载的卷。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "下載的檔案未通過驗證。請重新下載。"
+            "value": "磁碟映像檔未產生可掛載的卷宗。"
           }
-        },
+        }
+      }
+    },
+    "The downloaded file failed verification. Please try downloading again.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2910,23 +3010,23 @@
             "state": "translated",
             "value": "다운로드한 파일이 검증에 실패했습니다. 다시 다운로드해 보세요."
           }
-        }
-      }
-    },
-    "The downloaded runtime has an unexpected layout.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "下载的运行时目录结构异常。"
+            "value": "下载的文件未通过校验。请重新下载。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "下載的執行階段目錄結構異常。"
+            "value": "下載的檔案未通過驗證。請重新下載。"
           }
-        },
+        }
+      }
+    },
+    "The downloaded runtime has an unexpected layout.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2938,23 +3038,79 @@
             "state": "translated",
             "value": "다운로드한 런타임의 구조가 예상과 다릅니다."
           }
-        }
-      }
-    },
-    "This bottle no longer exists on disk.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此游戏瓶在磁盘上已不存在。"
+            "value": "下载的运行时目录结构异常。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此遊戲瓶在磁碟上已不存在。"
+            "value": "下載的執行階段目錄結構異常。"
+          }
+        }
+      }
+    },
+    "The libraries in this disk image are not signed by Apple, so they were not imported. Download the original from developer.apple.com/download and try again.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスクイメージ内のライブラリは Apple によって署名されていないため、読み込まれませんでした。developer.apple.com/download からオリジナルをダウンロードして再試行してください。"
           }
         },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 디스크 이미지의 라이브러리가 Apple 서명이 없어 가져오지 않았습니다. developer.apple.com/download에서 원본을 다운로드한 후 다시 시도하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该磁盘映像中的库未经 Apple 签名，因此未被导入。请从 developer.apple.com/download 下载原版后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "該磁碟映像中的程式庫未經 Apple 簽署，因此未被匯入。請從 developer.apple.com/download 下載原版後重試。"
+          }
+        }
+      }
+    },
+    "This bottle is being installed into. Wait for the install to finish, then delete it.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このボトルにインストール中です。インストールが完了してから削除してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 보틀에 설치가 진행 중입니다. 설치가 끝난 후 삭제하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在向这个游戏瓶安装内容。请等安装完成后再删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在向這個遊戲瓶安裝內容。請等安裝完成後再刪除。"
+          }
+        }
+      }
+    },
+    "This bottle no longer exists on disk.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2966,23 +3122,51 @@
             "state": "translated",
             "value": "이 보틀은 더 이상 디스크에 존재하지 않습니다."
           }
-        }
-      }
-    },
-    "This disk image doesn’t look like Apple’s “Evaluation environment for Windows games”. Download it from developer.apple.com/download (search for “Evaluation environment”).": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此磁盘映像看起来不是 Apple 的“Evaluation environment for Windows games”。请前往 developer.apple.com/download 下载（搜索“Evaluation environment”）。"
+            "value": "此游戏瓶在磁盘上已不存在。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此磁碟映像檔看起來不是 Apple 的「Evaluation environment for Windows games」。請前往 developer.apple.com/download 下載（搜尋「Evaluation environment」）。"
+            "value": "此遊戲瓶在磁碟上已不存在。"
+          }
+        }
+      }
+    },
+    "This bottle's runtime translates Direct3D to Metal with DXMT, which is built into Wine itself and is always active — that's why there is no Off choice here.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このボトルのランタイムは DXMT で Direct3D を Metal に変換します。DXMT は Wine 本体に組み込まれており常に有効なため、ここに「オフ」の選択肢はありません。"
           }
         },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 보틀의 런타임은 DXMT로 Direct3D를 Metal로 변환합니다. DXMT는 Wine 자체에 내장되어 항상 활성화되므로 여기에는 '끄기' 옵션이 없습니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个游戏瓶的运行时通过 DXMT 将 Direct3D 转换为 Metal。DXMT 内置于 Wine 本体、始终生效——因此这里没有「关闭」选项。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個遊戲瓶的執行階段透過 DXMT 將 Direct3D 轉換為 Metal。DXMT 內建於 Wine 本體、始終生效——因此這裡沒有「關閉」選項。"
+          }
+        }
+      }
+    },
+    "This disk image doesn’t look like Apple’s “Evaluation environment for Windows games”. Download it from developer.apple.com/download (search for “Evaluation environment”).": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -2994,23 +3178,23 @@
             "state": "translated",
             "value": "이 디스크 이미지는 Apple의 \"Evaluation environment for Windows games\"가 아닌 것 같습니다. developer.apple.com/download에서 다운로드하세요(\"Evaluation environment\" 검색)."
           }
-        }
-      }
-    },
-    "Unknown installer.": {
-      "localizations": {
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "未知的安装项。"
+            "value": "此磁盘映像看起来不是 Apple 的“Evaluation environment for Windows games”。请前往 developer.apple.com/download 下载（搜索“Evaluation environment”）。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "未知的安裝項目。"
+            "value": "此磁碟映像檔看起來不是 Apple 的「Evaluation environment for Windows games」。請前往 developer.apple.com/download 下載（搜尋「Evaluation environment」）。"
           }
-        },
+        }
+      }
+    },
+    "Unknown installer.": {
+      "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -3021,6 +3205,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "알 수 없는 설치 항목입니다."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知的安装项。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知的安裝項目。"
           }
         }
       }
@@ -3165,6 +3361,62 @@
         }
       }
     },
+    "Windows programs are running in this bottle": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このボトルで Windows プログラムが実行中です"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 보틀에서 Windows 프로그램이 실행 중입니다"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个游戏瓶中有 Windows 程序正在运行"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個遊戲瓶中有 Windows 程式正在執行"
+          }
+        }
+      }
+    },
+    "Windows programs are still running in this bottle. Stop them first, then delete it.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このボトルではまだ Windows プログラムが実行中です。先に停止してから削除してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 보틀에서 아직 Windows 프로그램이 실행 중입니다. 먼저 중지한 후 삭제하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个游戏瓶中仍有 Windows 程序在运行。请先停止它们，再删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個遊戲瓶中仍有 Windows 程式在執行。請先停止它們，再刪除。"
+          }
+        }
+      }
+    },
     "Your runtime already includes DirectX 11/12 translation. To update it to Apple's latest version, download “Evaluation environment for Windows games” from Apple (free Apple ID required) and import the DMG here.": {
       "localizations": {
         "ja": {
@@ -3195,18 +3447,6 @@
     },
     "“%@” failed (exit code %@). Check the bottle's logs for details.": {
       "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“%@”运行失败（退出码 %@）。详情请查看游戏瓶日志。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「%@」執行失敗（結束代碼 %@）。詳情請查看遊戲瓶日誌。"
-          }
-        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -3217,6 +3457,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "\"%@\"이(가) 실패했습니다(종료 코드 %@). 자세한 내용은 보틀 로그를 확인하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”运行失败（退出码 %@）。详情请查看游戏瓶日志。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」執行失敗（結束代碼 %@）。詳情請查看遊戲瓶日誌。"
           }
         }
       }

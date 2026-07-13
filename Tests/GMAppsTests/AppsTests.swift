@@ -208,8 +208,8 @@ struct AppInstallerTests {
         let fixture = env.root.appendingPathComponent("fixture-installer.exe")
         try Data("MZ".utf8).write(to: fixture)
 
-        /// Renames the bottle during the download phase — the user editing
-        /// the bottle while the installer runs.
+        // Renames the bottle during the download phase — the user editing
+        // the bottle while the installer runs.
         struct RenamingDownloader: Downloading {
             var fixture: URL
             var store: BottleStore
