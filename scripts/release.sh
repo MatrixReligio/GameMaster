@@ -56,6 +56,10 @@ echo "==> Version check OK: $BUILT_VERSION (build $BUILT_BUILD)"
 
 mkdir -p "$DIST"
 DMG="$DIST/GameMaster-$VERSION.dmg"
+# A stale appcast from a previous run must never ship with this release:
+# remove it up front so the only way to end the script with an appcast is
+# generate_appcast writing a fresh one below.
+rm -f "$DIST/appcast.xml"
 
 echo "==> Building DMG: $DMG"
 STAGING="$(mktemp -d)"
@@ -118,7 +122,10 @@ if [ -x "$GENERATE_APPCAST" ]; then
     "$DIST"
   echo "appcast: $DIST/appcast.xml"
 else
-  echo "WARN: generate_appcast not found (set SPARKLE_BIN); skipping appcast." >&2
+  # Fail closed: a release without a fresh, signed appcast would strand every
+  # existing install on the old version (or worse, ship a stale appcast).
+  echo "ERROR: generate_appcast not found — install Sparkle tools or set SPARKLE_BIN." >&2
+  exit 1
 fi
 
 echo "==> Done: $DMG"
