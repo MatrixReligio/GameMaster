@@ -41,6 +41,12 @@ jobs:
           brew install xcodegen
       - name: Generate project
         run: xcodegen generate
+      - name: Committed files must match project.yml
+        # xcodegen writes info-plist properties into the committed
+        # App/GameMaster-Info.plist. If generation changes it, someone edited
+        # project.yml without regenerating — the source checkout would build
+        # with stale values (this is how 0.3.4 shipped a 0.3.3 plist).
+        run: git diff --exit-code App/GameMaster-Info.plist
       - name: Build app (unsigned)
         run: |
           xcodebuild -project GameMaster.xcodeproj -scheme GameMaster -configuration Debug \

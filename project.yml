@@ -62,8 +62,11 @@ targets:
     info:
       path: App/GameMaster-Info.plist
       properties:
-        CFBundleShortVersionString: "0.3.4"
-        CFBundleVersion: "11"
+        # Reference the build settings above so MARKETING_VERSION /
+        # CURRENT_PROJECT_VERSION are the single source of truth — literal
+        # values here drifted (project.yml bumped, committed plist stale).
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSMinimumSystemVersion: "26.0"
         CFBundleLocalizations: [en, zh-Hans, zh-Hant, ja, ko]
         # Sparkle auto-update. Appcast is published as a stable GitHub "latest
