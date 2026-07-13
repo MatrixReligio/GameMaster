@@ -4,6 +4,45 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.7] — 2026-07-13
+
+A second hardening round: all nine findings of the follow-up security review,
+fixed test-first.
+
+### Security
+- **GPTK imports verify the whole payload, not one file.** The importer used
+  to check a single anchor dylib's Apple signature and then copy the entire
+  directory; a crafted DMG could ride unsigned libraries in beside a genuine
+  Apple file. Every Mach-O in the payload is now individually verified,
+  symlinks may not escape the payload, and the anchor is pinned to its known
+  Apple signing identifier.
+- **The release pipeline is pinned to content.** Sparkle is locked to an
+  exact version with the resolution file committed, the appcast tool
+  download is checksum-verified before it runs near the update-signing key,
+  and GitHub Actions reference full commit SHAs instead of movable tags.
+- **Icon extraction from dropped .exe files is bounded.** Crafted resource
+  trees with self-referencing directories no longer hang or crash the app,
+  and icon assembly caps entry count and total bytes.
+- **The Steam runtime download now ships its licenses.** The bundle carries
+  the license texts and a per-component THIRD-PARTY-NOTICES file with
+  source-code pointers for the Wine engine, DXMT, and every bundled library.
+
+### Fixed
+- **Running games are recognized after relaunching GameMaster.** Programs
+  keep running when the app quits (by design); the app now shows them as
+  running on relaunch instead of offering Play again, and stop requests
+  verify the processes actually ended instead of assuming success.
+- **A failed Retina toggle stays retryable.** The Wine registry is updated
+  first and the setting saved only on success; previously a regedit failure
+  left the saved setting permanently out of sync with Wine.
+- **Runtimes no longer vanish after a crash or a corrupt metadata file.**
+  A crash mid-replace is repaired at startup from the on-disk backup,
+  corrupt runtime metadata is reported instead of silently hidden (both
+  used to trigger a pointless re-download), metadata writes are atomic,
+  and a failed GPTK overlay leaves the runtime exactly as it was.
+- Adding or removing a program no longer overwrites bottle changes made
+  concurrently (the last snapshot-save holdouts are now transactional).
+
 ## [0.3.6] — 2026-07-13
 
 ### Fixed
