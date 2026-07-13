@@ -227,8 +227,8 @@ struct AppStateRunningStateTests {
         await state.stopProgram(program, in: bottle)
 
         #expect(state.isProgramRunning(program, in: bottle)) // still running
-        #expect(!state.closingIDs.contains(program.id))      // not stuck "Closing…"
-        #expect(state.lastErrorMessage != nil)               // user is told
+        #expect(!state.closingIDs.contains(program.id)) // not stuck "Closing…"
+        #expect(state.lastErrorMessage != nil) // user is told
 
         // Cleanup: let the (now unblocked) program exit so launch() returns.
         probe.setActive(prefix, false)
@@ -242,14 +242,16 @@ struct AppStateRunningStateTests {
 /// command (taskkill, wineboot, regedit, …) returns immediately.
 private final class GatedLaunchRunner: ProcessRunning, @unchecked Sendable {
     private let released = Mutex<Bool>(false)
-    func release() { released.withLock { $0 = true } }
+    func release() {
+        released.withLock { $0 = true }
+    }
 
     func run(
-        executable: URL,
+        executable _: URL,
         arguments: [String],
-        environment: [String: String]?,
-        currentDirectory: URL?,
-        outputLine: (@Sendable (String) -> Void)?
+        environment _: [String: String]?,
+        currentDirectory _: URL?,
+        outputLine _: (@Sendable (String) -> Void)?
     ) async throws -> ProcessResult {
         if arguments.first == "start" {
             while !released.withLock({ $0 }) {
