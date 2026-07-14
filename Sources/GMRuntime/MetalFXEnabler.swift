@@ -32,11 +32,11 @@ public struct MetalFXEnabler: Sendable {
             ("wine/x86_64-windows/nvngx-on-metalfx.dll", "wine/x86_64-windows/nvngx.dll")
         ]
         for (from, to) in activations {
-            let source = lib.appendingPathComponent(from)
-            let target = lib.appendingPathComponent(to)
-            if fm.fileExists(atPath: source.path), !fm.fileExists(atPath: target.path) {
-                try fm.copyItem(at: source, to: target)
-            }
+            try Self.activateShim(
+                from: lib.appendingPathComponent(from),
+                to: lib.appendingPathComponent(to),
+                using: fm
+            )
         }
 
         let system32 = prefix.appendingPathComponent("drive_c/windows/system32", isDirectory: true)
@@ -58,6 +58,38 @@ public struct MetalFXEnabler: Sendable {
                 try fm.removeItem(at: target)
             }
             try fm.copyItem(at: source, to: target)
+        }
+    }
+
+    /// Activates one `-on-metalfx` shim (`source`) as `target` in the SHARED
+    /// runtime, non-destructively and atomically. The runtime is contended: two
+    /// bottles can launch at once and each prepares MetalFX on it. Copying
+    /// straight to `target` would let a concurrent reader observe a half-written
+    /// shim, and two writers collide (the loser throwing EEXIST would fail a
+    /// launch). So the copy lands in a uniquely-named temp beside the target and
+    /// is moved into place with a single atomic rename — `target` only ever
+    /// appears complete. The fast-path skip keeps re-prepares cheap and idempotent.
+    static func activateShim(from source: URL, to target: URL, using fm: FileManager) throws {
+        guard fm.fileExists(atPath: source.path), !fm.fileExists(atPath: target.path) else { return }
+        let temp = target.deletingLastPathComponent()
+            .appendingPathComponent(".\(target.lastPathComponent).gm-activate-\(UUID().uuidString)")
+        do {
+            try fm.copyItem(at: source, to: temp)
+        } catch {
+            try? fm.removeItem(at: temp)
+            throw error
+        }
+        do {
+            try fm.moveItem(at: temp, to: target)
+        } catch {
+            // A concurrent prepare won the race and already placed the target
+            // (identical content — both come from the same immutable source).
+            // Drop our redundant temp; only a still-missing target is a real
+            // failure worth surfacing.
+            try? fm.removeItem(at: temp)
+            if !fm.fileExists(atPath: target.path) {
+                throw error
+            }
         }
     }
 }
