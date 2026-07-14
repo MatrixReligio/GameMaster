@@ -5,6 +5,7 @@ import GMModel
 import GMRuntime
 import GMSystem
 import GMTestSupport
+import Synchronization
 import Testing
 @testable import GMApps
 
@@ -136,5 +137,77 @@ struct AppStateMaintenanceGuardTests {
         let store = BottleStore(root: ready.dir.appendingPathComponent("approot"))
         let onDisk = try #require(await store.list().first { $0.id == bottle.id })
         #expect(onDisk.programs.count == before) // nothing was registered
+    }
+
+    /// deleteBottle's stopAll (wineserver -k) and delete run after awaits, so a
+    /// GPTK import could otherwise start mid-delete. deleteBottle now holds the
+    /// bottle's busy lock synchronously for its whole duration, and the import
+    /// refuses while any bottle is busy — closing the last guard-then-await hole.
+    @Test func refusesGPTKImportWhileADeleteIsInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = GatedStopRunner()
+        let mounter = FakeMounter(mountPoint: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: mounter,
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+
+        // Delete, gated at wineserver -k, so it stays in flight.
+        let deleteTask = Task { await state.deleteBottle(bottle) }
+        var inFlight = false
+        for _ in 0 ..< 200 where !inFlight {
+            if runner.reached {
+                inFlight = true
+            } else {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+        #expect(inFlight)
+        state.lastErrorMessage = nil
+        await state.importGPTK(dmg: dir.appendingPathComponent("eval.dmg"))
+        #expect(state.lastErrorMessage != nil)
+        #expect(mounter.mounted.isEmpty) // import refused, never mounted
+
+        runner.release()
+        await deleteTask.value
+    }
+}
+
+/// Runner that blocks `wineserver -k` until released, so a test can hold a
+/// bottle delete in flight; `reached` flips once the stop actually blocks.
+private final class GatedStopRunner: ProcessRunning, @unchecked Sendable {
+    private let released = Mutex<Bool>(false)
+    private let reachedStop = Mutex<Bool>(false)
+    var reached: Bool {
+        reachedStop.withLock { $0 }
+    }
+
+    func release() {
+        released.withLock { $0 = true }
+    }
+
+    func run(
+        executable _: URL,
+        arguments: [String],
+        environment _: [String: String]?,
+        currentDirectory _: URL?,
+        outputLine _: (@Sendable (String) -> Void)?
+    ) async throws -> ProcessResult {
+        if arguments.first == "-k" {
+            reachedStop.withLock { $0 = true }
+            while !released.withLock({ $0 }) {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+        return ProcessResult(exitCode: 0)
     }
 }

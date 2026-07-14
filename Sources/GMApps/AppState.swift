@@ -294,7 +294,11 @@ public final class AppState {
         // `creatingBottle` matters too: a new bottle's wineboot loads libraries
         // from the shared runtime's wine/lib, and the bottle isn't in `bottles`
         // (so anyBottleActive can't see it) until after its boot succeeds.
-        if runtimeMaintenanceInProgress || isInstalling || runtimeInstalling || creatingBottle {
+        // `busyBottleIDs` covers a bottle install OR delete in flight (the
+        // "delete-lock"): a delete's stopAll/removal runs after awaits, so
+        // refusing here keeps the runtime from being replaced mid-delete.
+        if runtimeMaintenanceInProgress || isInstalling || runtimeInstalling
+            || creatingBottle || !busyBottleIDs.isEmpty {
             lastErrorMessage = String(
                 localized: "An install is in progress. Wait for it to finish before updating the graphics runtime."
             )
@@ -390,6 +394,12 @@ public final class AppState {
             )
             return
         }
+        // Hold the bottle's busy lock synchronously (before the first await) for
+        // the whole delete: stopAll and the delete itself run after awaits, and
+        // a GPTK import — which refuses while any bottle is busy — must not slip
+        // into that window and start replacing the runtime mid-delete.
+        busyBottleIDs.insert(bottle.id)
+        defer { busyBottleIDs.remove(bottle.id) }
         // Probe live (not the cached set): the user may have just stopped the
         // game, or started one this very second — deletion needs the truth now.
         let prefix = await bottleStore.prefixDirectory(of: bottle)
