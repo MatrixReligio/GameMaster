@@ -458,6 +458,50 @@ struct AppStateRunningStateTests {
         runner.release()
         await runTask.value
     }
+
+    /// The dropped-exe path registers the program BEFORE launching, so it too
+    /// holds a synchronous launch marker for its whole duration — otherwise a
+    /// GPTK import racing the register-then-launch window would leave the
+    /// program added but never launched (and a re-drop would duplicate it).
+    @Test func refusesGPTKImportWhileAnAddAndLaunchIsInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = GatedLaunchRunner()
+        let mounter = FakeMounter(mountPoint: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: mounter,
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let exe = dir.appendingPathComponent("Dropped.exe")
+        try Data("MZ".utf8).write(to: exe)
+
+        // Drop-and-launch, gated at wine `start`, so it stays in flight.
+        let addTask = Task { await state.addProgramAndLaunch(exe: exe, in: bottle) }
+        var inFlight = false
+        for _ in 0 ..< 200 where !inFlight {
+            if state.launchingIDs.isEmpty {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            } else {
+                inFlight = true
+            }
+        }
+        #expect(inFlight)
+        state.lastErrorMessage = nil
+        await state.importGPTK(dmg: dir.appendingPathComponent("eval.dmg"))
+        #expect(state.lastErrorMessage != nil)
+        #expect(mounter.mounted.isEmpty) // import refused, never mounted
+
+        runner.release()
+        await addTask.value
+    }
 }
 
 /// Runner that blocks `wineboot --init` until released, so a test can hold a

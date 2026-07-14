@@ -155,6 +155,15 @@ public extension AppState {
         // maintenance anyway, leaving the program added-but-unlaunched — and
         // re-dropping the same exe would then duplicate it. Guard up front.
         guard !blockedByRuntimeMaintenance() else { return }
+        // `addProgram` is an actor hop, so mark a launch in flight synchronously
+        // (before that await) so a GPTK import can't raise the lease during the
+        // register-then-launch window and still leave the program added but
+        // unlaunched. Synthetic id (not a program's) so it lights up no card;
+        // mirrors runExe. Every entry point now sets a sync flag before its
+        // first await — no guard-then-await hole for the import to slip into.
+        let launchMarker = UUID()
+        launchingIDs.insert(launchMarker)
+        defer { launchingIDs.remove(launchMarker) }
         let program: Program
         do {
             program = try await programLibrary.addProgram(exe: exe, name: nil, in: bottle)
