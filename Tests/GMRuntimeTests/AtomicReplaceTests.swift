@@ -1,4 +1,5 @@
 import Foundation
+import GMModel
 import Testing
 @testable import GMRuntime
 
@@ -116,11 +117,19 @@ struct AtomicReplaceTests {
 
 @Suite("GPTK import recovery")
 struct GPTKImportRecoveryTests {
-    /// A crash between the lib swap and the metadata commit leaves the marker;
-    /// recovery restores the OLD lib so the runtime and its metadata agree.
-    @Test func recoverRollsBackAnInterruptedImport() throws {
-        let dir = try tempDir()
-        defer { try? FileManager.default.removeItem(at: dir) }
+    /// Lays out an interrupted-import runtime: a `lib/` with the NEW content, a
+    /// `.lib.old-*` backup with the OLD content, a marker targeting `version`,
+    /// and a saved `runtime.json` recording `savedGPTK`. Returns the lib URL.
+    private struct Staged {
+        let runtimesRoot: URL
+        let lib: URL
+        let backup: URL
+        let marker: URL
+    }
+
+    private func stageInterrupted(
+        in dir: URL, targetVersion: String, savedGPTK: GPTKStatus
+    ) throws -> Staged {
         let runtimesRoot = dir.appendingPathComponent("runtimes")
         let runtimeDir = runtimesRoot.appendingPathComponent("rt")
         let wineRoot = runtimeDir.appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine")
@@ -128,18 +137,48 @@ struct GPTKImportRecoveryTests {
         let backup = wineRoot.appendingPathComponent(".lib.old-ABC")
         try FileManager.default.createDirectory(at: lib, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: runtimeDir, withIntermediateDirectories: true)
         try Data("new".utf8).write(to: lib.appendingPathComponent("d3dmetal"))
         try Data("old".utf8).write(to: backup.appendingPathComponent("d3dmetal"))
+        let descriptor = RuntimeDescriptor(
+            id: "rt", displayVersion: "test", wineBinaryRelativePath: "x", gptk: savedGPTK
+        )
+        try JSONEncoder().encode(descriptor).write(to: runtimeDir.appendingPathComponent("runtime.json"))
         let marker = runtimeDir.appendingPathComponent(".gptk-import-txn.json")
-        try JSONEncoder().encode(
-            RuntimeInstaller.GPTKImportTransaction(libPath: lib.path, backupPath: backup.path)
-        ).write(to: marker)
+        try JSONEncoder().encode(RuntimeInstaller.GPTKImportTransaction(
+            libPath: lib.path, backupPath: backup.path, targetVersion: targetVersion
+        )).write(to: marker)
+        return Staged(runtimesRoot: runtimesRoot, lib: lib, backup: backup, marker: marker)
+    }
 
-        try RuntimeInstaller.recoverInterruptedGPTKImports(in: runtimesRoot)
+    /// Interrupted BEFORE the metadata commit (saved gptk still old): recovery
+    /// restores the OLD lib so the runtime and its metadata agree.
+    @Test func recoverRollsBackAnImportInterruptedBeforeCommit() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let staged = try stageInterrupted(in: dir, targetVersion: "3.0", savedGPTK: .none)
 
-        #expect(try String(contentsOf: lib.appendingPathComponent("d3dmetal"), encoding: .utf8) == "old")
-        #expect(!FileManager.default.fileExists(atPath: backup.path))
-        #expect(!FileManager.default.fileExists(atPath: marker.path))
+        try RuntimeInstaller.recoverInterruptedGPTKImports(in: staged.runtimesRoot)
+
+        #expect(try String(contentsOf: staged.lib.appendingPathComponent("d3dmetal"), encoding: .utf8) == "old")
+        #expect(!FileManager.default.fileExists(atPath: staged.backup.path))
+        #expect(!FileManager.default.fileExists(atPath: staged.marker.path))
+    }
+
+    /// The crash-safety case the review caught: the metadata commit already
+    /// landed (saved gptk == target) but the marker outlived it. Recovery must
+    /// KEEP the new lib — rolling back would strand new metadata over the old
+    /// lib — and just clean up the marker + backup.
+    @Test func recoverKeepsACommittedImportWhoseMarkerSurvived() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let staged = try stageInterrupted(in: dir, targetVersion: "3.0", savedGPTK: .installed(version: "3.0"))
+
+        try RuntimeInstaller.recoverInterruptedGPTKImports(in: staged.runtimesRoot)
+
+        #expect(try String(contentsOf: staged.lib.appendingPathComponent("d3dmetal"), encoding: .utf8) == "new")
+        #expect(!FileManager.default.fileExists(atPath: staged.backup.path))
+        #expect(!FileManager.default.fileExists(atPath: staged.marker.path))
     }
 
     /// A committed runtime has no marker, so recovery leaves it untouched.

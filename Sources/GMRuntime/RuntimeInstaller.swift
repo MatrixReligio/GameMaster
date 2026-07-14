@@ -162,37 +162,61 @@ public struct RuntimeInstaller: Sendable {
     public struct GPTKImportTransaction: Codable, Equatable {
         public var libPath: String
         public var backupPath: String
-        public init(libPath: String, backupPath: String) {
+        /// The gptk version this import is committing. Recovery compares it to
+        /// the runtime's SAVED descriptor to tell a committed import (whose
+        /// marker merely outlived the commit) from an interrupted one.
+        public var targetVersion: String
+        public init(libPath: String, backupPath: String, targetVersion: String) {
             self.libPath = libPath
             self.backupPath = backupPath
+            self.targetVersion = targetVersion
         }
     }
 
     static let gptkImportMarkerName = ".gptk-import-txn.json"
 
-    /// Rolls back GPTK imports interrupted before their metadata commit. Scans
-    /// each runtime's root (top level — the marker lives there so recovery needs
-    /// no knowledge of the nested wine layout) for a leftover transaction marker
-    /// and, finding one, restores the backed-up `lib/`. Call once at startup.
+    /// Cleans up GPTK imports whose transaction marker survived to the next
+    /// launch. Recovery is EVIDENCE-BASED, not marker-presence-based: the
+    /// metadata save is the commit point, but the marker/backup are deleted in
+    /// separate steps after it, so a crash there can leave a marker on a runtime
+    /// that DID commit. Rolling that back would strand new metadata over the old
+    /// lib. So compare the saved descriptor's gptk version to the marker's
+    /// target: if they match the import committed (keep the new lib, just clean
+    /// up); otherwise it was interrupted before commit (restore the old lib).
+    /// The marker lives at the runtime root, so recovery needs no knowledge of
+    /// the nested wine layout. Call once at startup.
     public static func recoverInterruptedGPTKImports(in runtimesRoot: URL) throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: runtimesRoot.path) else { return }
         for runtimeName in try fm.contentsOfDirectory(atPath: runtimesRoot.path) {
-            let markerURL = runtimesRoot.appendingPathComponent(runtimeName, isDirectory: true)
-                .appendingPathComponent(gptkImportMarkerName)
+            let runtimeDir = runtimesRoot.appendingPathComponent(runtimeName, isDirectory: true)
+            let markerURL = runtimeDir.appendingPathComponent(gptkImportMarkerName)
             guard fm.fileExists(atPath: markerURL.path),
                   let data = try? Data(contentsOf: markerURL),
                   let txn = try? JSONDecoder().decode(GPTKImportTransaction.self, from: data)
             else { continue }
-            // Marker present ⇒ the import didn't finish committing ⇒ restore the
-            // old lib so the runtime and its saved metadata stay consistent.
             let lib = URL(fileURLWithPath: txn.libPath)
             let backup = URL(fileURLWithPath: txn.backupPath)
-            if fm.fileExists(atPath: backup.path) {
+            let committed = savedGPTKVersion(in: runtimeDir) == txn.targetVersion
+            // Interrupted before commit → restore the old lib (if we got as far
+            // as moving it aside). Committed → leave the new lib in place.
+            if !committed, fm.fileExists(atPath: backup.path) {
                 try? fm.removeItem(at: lib)
                 try? fm.moveItem(at: backup, to: lib)
             }
+            try? fm.removeItem(at: backup)
             try? fm.removeItem(at: markerURL)
         }
+    }
+
+    /// The installed gptk version recorded in a runtime's saved `runtime.json`,
+    /// or nil if absent/unreadable/not-installed.
+    private static func savedGPTKVersion(in runtimeDir: URL) -> String? {
+        let json = runtimeDir.appendingPathComponent("runtime.json")
+        guard let data = try? Data(contentsOf: json),
+              let descriptor = try? JSONDecoder().decode(RuntimeDescriptor.self, from: data),
+              case let .installed(version) = descriptor.gptk
+        else { return nil }
+        return version
     }
 }

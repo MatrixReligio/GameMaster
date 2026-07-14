@@ -130,30 +130,34 @@ public struct GPTKImporter: Sendable {
                 throw RuntimeError.dmgLayoutUnrecognized
             }
         }
-        // Transactional swap: keep the old lib as a backup and mark the runtime
-        // "import pending" until the metadata commit succeeds. A failure — or a
-        // crash recovered at startup — rolls the old lib back, so the runtime and
-        // its saved metadata never disagree. (replaceDirectory deleted the backup
-        // BEFORE the metadata was saved, so a crash there stranded the new lib.)
+        // Transactional swap. The metadata save is the commit point. Write the
+        // marker (recording the target version) BEFORE moving anything, so a
+        // failed marker write leaves the original lib intact, and any later
+        // crash is recoverable. A synchronous failure rolls the old lib back
+        // here; a crash is rolled back (or, if it already committed, cleaned up)
+        // by recoverInterruptedGPTKImports at the next startup.
         let backup = wineRoot.appendingPathComponent(".lib.old-\(UUID().uuidString)", isDirectory: true)
         let marker = await store.runtimeDirectory(id: runtimeID)
             .appendingPathComponent(RuntimeInstaller.gptkImportMarkerName)
-        try fm.moveItem(at: libDir, to: backup)
-        try JSONEncoder().encode(
-            RuntimeInstaller.GPTKImportTransaction(libPath: libDir.path, backupPath: backup.path)
-        ).write(to: marker)
+        let targetVersion = Self.versionString(from: volume.lastPathComponent)
+        try JSONEncoder().encode(RuntimeInstaller.GPTKImportTransaction(
+            libPath: libDir.path, backupPath: backup.path, targetVersion: targetVersion
+        )).write(to: marker)
         do {
+            try fm.moveItem(at: libDir, to: backup)
             try fm.moveItem(at: staging, to: libDir)
-            descriptor.gptk = .installed(version: Self.versionString(from: volume.lastPathComponent))
+            descriptor.gptk = .installed(version: targetVersion)
             try await store.save(descriptor) // commit point
         } catch {
-            // Roll back to the old lib; the on-disk descriptor is untouched.
-            try? fm.removeItem(at: libDir)
-            try? fm.moveItem(at: backup, to: libDir)
+            // Roll back to the old lib if we got as far as moving it aside.
+            if fm.fileExists(atPath: backup.path) {
+                try? fm.removeItem(at: libDir)
+                try? fm.moveItem(at: backup, to: libDir)
+            }
             try? fm.removeItem(at: marker)
             throw error
         }
-        try? fm.removeItem(at: marker) // committed — drop the marker first, then the backup
+        try? fm.removeItem(at: marker)
         try? fm.removeItem(at: backup)
         return descriptor
     }
