@@ -199,3 +199,32 @@ struct SteamServiceStubTests {
         #expect(SteamServiceStub.bundledResource(named: "steamservice_stub") != nil)
     }
 }
+
+/// The launch path now runs the Steam binary fixups with `try` (not `try?`):
+/// without the CEF wrapper Steam's UI is black, so a failed fixup is
+/// launch-critical and must surface rather than launching an unusable client.
+@Suite("Steam fixup failure surfaces")
+struct SteamFixupFailureTests {
+    @Test func applySteamBinaryFixupsPropagatesAWriteFailure() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let catalog = try InstallerCatalog.bundled()
+        let entry = try #require(catalog.entries.first { $0.id == "steam" })
+
+        // A genuine (large) helper in the CEF dir so the wrapper install attempts
+        // its backup+replace — then make that dir read-only so the atomic write
+        // of the temp fails, exactly as a real disk/permission error would.
+        let prefix = dir.appendingPathComponent("prefix")
+        let cef = prefix.appendingPathComponent("drive_c/Program Files (x86)/Steam/bin/cef/cef.win64")
+        try FileManager.default.createDirectory(at: cef, withIntermediateDirectories: true)
+        try Data(count: 1_100_000).write(to: cef.appendingPathComponent("steamwebhelper.exe"))
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: cef.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cef.path)
+        }
+
+        #expect(throws: (any Error).self) {
+            try AppInstaller.applySteamBinaryFixups(entry: entry, prefix: prefix)
+        }
+    }
+}

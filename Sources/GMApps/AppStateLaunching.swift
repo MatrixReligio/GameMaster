@@ -97,7 +97,7 @@ public extension AppState {
         }
         do {
             let bottle = try await migrateSteamBottleIfNeeded(program: program, in: bottle)
-            await ensureWebHelperWrapper(for: program, in: bottle)
+            try await ensureWebHelperWrapper(for: program, in: bottle)
             // `start /wait` returns only when the program's process fully exits —
             // for Steam that's after its (slow) shutdown, which the "Closing…"
             // state covers.
@@ -174,13 +174,17 @@ public extension AppState {
     /// Steam self-update can overwrite them with the stock binaries, bringing
     /// back the black UI and the "Steam Service Error" dialog. Idempotent and a
     /// no-op for programs without those specs.
-    private func ensureWebHelperWrapper(for program: Program, in bottle: Bottle) async {
+    private func ensureWebHelperWrapper(for program: Program, in bottle: Bottle) async throws {
         guard let entry = catalog.entries.first(where: {
             $0.installedWindowsPath == program.windowsPath
                 && ($0.webhelperWrapper != nil || $0.serviceStub != nil)
         }) else { return }
         let prefix = await bottleStore.prefixDirectory(of: bottle)
-        try? AppInstaller.applySteamBinaryFixups(entry: entry, prefix: prefix)
+        // Propagate: without the CEF wrapper Steam's UI renders black, so a
+        // failed fixup is launch-critical — surface it as an actionable error
+        // rather than launching into an unusable client. Stop/control paths
+        // don't run this, so they stay independent of graphics fixups.
+        try AppInstaller.applySteamBinaryFixups(entry: entry, prefix: prefix)
     }
 
     /// Gracefully stops a running program. Catalog programs with
