@@ -247,35 +247,42 @@ public extension AppState {
         // maintenance anyway, leaving the program added-but-unlaunched — and
         // re-dropping the same exe would then duplicate it. Guard up front.
         guard !blockedByRuntimeMaintenance() else { return }
-        // Shared bottle lease before registering: `addProgram` mutates the
-        // bottle, so a concurrent delete must be excluded from here, not just
-        // from the nested launch. The nested launch takes its own (stacking)
-        // shared reader.
+        // Register under the bottle's shared lease, RELEASED before the launch:
+        // the nested launch takes its own lease, and if the dropped program needs
+        // a Steam migration that lease is EXCLUSIVE — which a still-held shared
+        // reader here would block, self-refusing the launch every time.
+        guard let program = await registerDroppedProgram(exe: exe, in: bottle) else { return }
+        await launch(program: program, in: bottle)
+    }
+
+    /// Adds a dropped exe to `bottle` under the bottle's SHARED lease (excludes a
+    /// concurrent delete during `addProgram`'s mutation), refreshes, and returns
+    /// the new program. The lease is released before this returns so the launch
+    /// can take its own. nil on refusal/failure.
+    private func registerDroppedProgram(exe: URL, in bottle: Bottle) async -> Program? {
         guard bottleLeases.acquireShared(bottle.id) else {
             lastErrorMessage = String(
                 localized: "This bottle is busy with another operation. Wait for it to finish, then try again."
             )
-            return
+            return nil
         }
         defer { bottleLeases.releaseShared(bottle.id) }
         // `addProgram` is an actor hop, so mark a launch in flight synchronously
         // (before that await) so a GPTK import can't raise the lease during the
-        // register-then-launch window and still leave the program added but
-        // unlaunched. Synthetic id (not a program's) so it lights up no card;
-        // mirrors runExe. Every entry point now sets a sync flag before its
-        // first await — no guard-then-await hole for the import to slip into.
+        // register window. Synthetic id (not a program's) so it lights up no
+        // card; mirrors runExe. The marker hands off with no await gap to the
+        // launch's own program-id markers.
         let launchMarker = UUID()
         launchingIDs.insert(launchMarker)
         defer { launchingIDs.remove(launchMarker) }
-        let program: Program
         do {
-            program = try await programLibrary.addProgram(exe: exe, name: nil, in: bottle)
+            let program = try await programLibrary.addProgram(exe: exe, name: nil, in: bottle)
+            await refresh()
+            return program
         } catch {
             report(error)
-            return
+            return nil
         }
-        await refresh()
-        await launch(program: program, in: bottle)
     }
 
     func runExe(_ exe: URL, in bottle: Bottle) async {
