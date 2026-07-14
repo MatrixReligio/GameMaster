@@ -246,15 +246,15 @@ public struct WineLauncher: Sendable {
             .deletingLastPathComponent() // bin/
             .deletingLastPathComponent() // wine root
             .appendingPathComponent("lib/wine/x86_64-windows/winemetal.dll")
-        let fm = FileManager.default
         guard let sourceSize = fileSize(of: source) else { return }
         let target = prefix.appendingPathComponent("drive_c/windows/system32/winemetal.dll")
         if fileSize(of: target) == sourceSize {
             return
         }
-        try? fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? fm.removeItem(at: target)
-        try? fm.copyItem(at: source, to: target)
+        // context() runs this on every wine op, so two concurrent ops in one
+        // bottle raced here (removeItem→copyItem left the DLL momentarily gone).
+        // Place it atomically; best-effort as before (a failure just retries).
+        try? AtomicFile.replace(at: target, withCopyOf: source)
     }
 
     private static func fileSize(of url: URL) -> Int? {

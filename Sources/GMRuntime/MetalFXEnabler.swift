@@ -52,12 +52,11 @@ public struct MetalFXEnabler: Sendable {
         }
         for dll in ["nvngx.dll", "nvapi64.dll"] {
             let source = lib.appendingPathComponent("wine/x86_64-windows/\(dll)")
-            let target = system32.appendingPathComponent(dll)
             guard fm.fileExists(atPath: source.path) else { continue }
-            if fm.fileExists(atPath: target.path) {
-                try fm.removeItem(at: target)
-            }
-            try fm.copyItem(at: source, to: target)
+            // Atomic: two programs launching in one bottle both prep this same
+            // prefix, and the old removeItem→copyItem raced (missing/half file,
+            // or an EEXIST that failed a launch).
+            try AtomicFile.replace(at: system32.appendingPathComponent(dll), withCopyOf: source)
         }
     }
 
