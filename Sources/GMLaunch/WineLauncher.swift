@@ -118,6 +118,7 @@ public struct WineLauncher: Sendable {
         guard lease.acquireReader() else { throw LaunchError.runtimeUnderMaintenance }
         defer { lease.releaseReader() }
         try await prepareMetalFXIfNeeded(for: bottle)
+        try await prepareDXMTIfNeeded(for: bottle)
         let context = try await context(for: bottle)
         let exe = WindowsPath.toUnix(program.windowsPath, prefix: context.prefix)
         return try await start(
@@ -152,6 +153,7 @@ public struct WineLauncher: Sendable {
         guard lease.acquireReader() else { throw LaunchError.runtimeUnderMaintenance }
         defer { lease.releaseReader() }
         try await prepareMetalFXIfNeeded(for: bottle)
+        try await prepareDXMTIfNeeded(for: bottle)
         let context = try await context(for: bottle)
         return try await start(
             exe: exe,
@@ -239,8 +241,12 @@ public struct WineLauncher: Sendable {
     /// system32. The d3d11/dxgi builtins load it by name, and wine resolves
     /// that reliably only when the DLL is also visible inside the prefix.
     /// Idempotent (size compare) and reapplied on every launch, because a
-    /// prefix reset or client self-update can drop the copy.
-    static func ensureDXMTPrefixSupport(runtime: RuntimeDescriptor, wineBinary: URL, prefix: URL) {
+    /// prefix reset or client self-update can drop the copy. Throwing: a failed
+    /// placement is launch-critical (the game loads a broken d3d11), so callers
+    /// on the launch/run paths surface it rather than starting into a broken
+    /// game. A missing SOURCE is a no-op (not an error): a DXMT-less runtime, or
+    /// one whose winemetal the game will simply do without.
+    static func ensureDXMTPrefixSupport(runtime: RuntimeDescriptor, wineBinary: URL, prefix: URL) throws {
         guard case .installed = runtime.dxmt else { return }
         let source = wineBinary
             .deletingLastPathComponent() // bin/
@@ -251,10 +257,11 @@ public struct WineLauncher: Sendable {
         if fileSize(of: target) == sourceSize {
             return
         }
-        // context() runs this on every wine op, so two concurrent ops in one
-        // bottle raced here (removeItem→copyItem left the DLL momentarily gone).
-        // Place it atomically; best-effort as before (a failure just retries).
-        try? AtomicFile.replace(at: target, withCopyOf: source)
+        // Two programs launching in one bottle can run this concurrently on the
+        // same prefix; place it atomically so no reader sees a gap. AtomicFile
+        // tolerates same-source races (the loser finds the file already there),
+        // so throwing here never spuriously fails a concurrent launch.
+        try AtomicFile.replace(at: target, withCopyOf: source)
     }
 
     private static func fileSize(of url: URL) -> Int? {
@@ -277,12 +284,28 @@ public struct WineLauncher: Sendable {
         let prefix = await bottleStore.prefixDirectory(of: bottle)
         let environment = EnvironmentComposer.environment(for: bottle, prefix: prefix, runtime: descriptor)
         let wineBinary = await runtimeStore.wineBinary(for: descriptor)
-        Self.ensureDXMTPrefixSupport(runtime: descriptor, wineBinary: wineBinary, prefix: prefix)
         return Context(
             wineBinary: wineBinary,
             prefix: prefix,
             environment: environment
         )
+    }
+
+    /// Mirrors DXMT's winemetal.dll into the prefix before a launch. Like
+    /// `prepareMetalFXIfNeeded`, deliberately NOT part of `context()`: stop and
+    /// control commands (taskkill, wineserver -k, `-shutdown`) also use
+    /// `context`, and must work even when this file op fails — so the throwing
+    /// prep runs only on the launch/run paths. A launch-critical failure (the
+    /// game would load a broken d3d11) surfaces here instead of being swallowed.
+    private func prepareDXMTIfNeeded(for bottle: Bottle) async throws {
+        // Callers hold the runtime reader for the whole operation, so reading
+        // the runtime here is already fenced against a GPTK import.
+        let runtimeID = bottle.runtimeID ?? defaultRuntimeID
+        guard let descriptor = try await runtimeStore.descriptor(id: runtimeID),
+              case .installed = descriptor.dxmt else { return }
+        let prefix = await bottleStore.prefixDirectory(of: bottle)
+        let wineBinary = await runtimeStore.wineBinary(for: descriptor)
+        try Self.ensureDXMTPrefixSupport(runtime: descriptor, wineBinary: wineBinary, prefix: prefix)
     }
 
     /// Activates GPTK's DLSS-to-MetalFX shims (nvngx-on-metalfx.*) for this

@@ -35,15 +35,17 @@ struct WineLauncherDXMTConcurrencyTests {
             dxmt: .installed(version: "0.80")
         )
 
-        await withTaskGroup(of: Void.self) { group in
+        // Placement is now throwing, but AtomicFile tolerates same-source races,
+        // so 32 concurrent placers all succeed — a spurious throw fails here.
+        try await withThrowingTaskGroup(of: Void.self) { group in
             for _ in 0 ..< 32 {
                 group.addTask {
-                    WineLauncher.ensureDXMTPrefixSupport(
+                    try WineLauncher.ensureDXMTPrefixSupport(
                         runtime: descriptor, wineBinary: wineBinary, prefix: prefix
                     )
                 }
             }
-            await group.waitForAll()
+            try await group.waitForAll()
         }
 
         let target = prefix.appendingPathComponent("drive_c/windows/system32/winemetal.dll")

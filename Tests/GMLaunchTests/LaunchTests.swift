@@ -389,6 +389,47 @@ struct DXMTPrefixSupportTests {
         let target = await prefixWinemetal(env)
         #expect(!FileManager.default.fileExists(atPath: target.path))
     }
+
+    /// A winemetal placement failure must not be swallowed: DXMT's d3d11/dxgi
+    /// load winemetal.dll by name, so a game launched without it renders broken.
+    /// The launch surfaces the error instead of starting into a broken game.
+    @Test func launchSurfacesDXMTPrepFailure() async throws {
+        let env = try await makeEnv(dxmt: .installed(version: "0.80"))
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        _ = try writeRuntimeWinemetal(env: env, contents: "DXMT winemetal")
+        // Force the placement to fail: a FILE sits where system32 must be created.
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let windows = prefix.appendingPathComponent("drive_c/windows")
+        try FileManager.default.createDirectory(at: windows, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: windows.appendingPathComponent("system32"))
+
+        await #expect(throws: (any Error).self) {
+            _ = try await launcher(env).launch(Program(name: "Game", windowsPath: "C:\\game.exe"), in: env.bottle)
+        }
+    }
+
+    /// Stopping must never depend on DXMT file prep: a bottle whose winemetal
+    /// placement fails must still be stoppable. `taskkill` and `stopAll` get a
+    /// plain runtime context and never run the (throwing) prep — even though a
+    /// launch of the same bottle surfaces the failure.
+    @Test func stopCommandsIgnoreDXMTPrepFailure() async throws {
+        let env = try await makeEnv(dxmt: .installed(version: "0.80"))
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        _ = try writeRuntimeWinemetal(env: env, contents: "DXMT winemetal")
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let windows = prefix.appendingPathComponent("drive_c/windows")
+        try FileManager.default.createDirectory(at: windows, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: windows.appendingPathComponent("system32"))
+
+        let launcher = launcher(env)
+        // Stop paths must succeed despite the broken DXMT prep.
+        try await launcher.stopAll(in: env.bottle)
+        try await launcher.taskkill(imageName: "game.exe", in: env.bottle)
+        // A launch of the same bottle still surfaces the prep failure.
+        await #expect(throws: (any Error).self) {
+            _ = try await launcher.launch(Program(name: "Game", windowsPath: "C:\\game.exe"), in: env.bottle)
+        }
+    }
 }
 
 @Suite("MetalFX preparation on launch")
