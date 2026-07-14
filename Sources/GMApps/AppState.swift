@@ -380,6 +380,10 @@ public final class AppState {
     }
 
     public func deleteBottle(_ bottle: Bottle) async {
+        // stopAll (wineserver -k) spawns wine against the shared runtime, and
+        // its `try?` here would swallow the arbiter's refusal and delete anyway
+        // — so refuse the whole delete up front while the runtime is replaced.
+        guard !blockedByRuntimeMaintenance() else { return }
         guard !busyBottleIDs.contains(bottle.id) else {
             lastErrorMessage = String(
                 localized: "This bottle is being installed into. Wait for the install to finish, then delete it."
@@ -409,6 +413,10 @@ public final class AppState {
     /// bottle's current state, so a sheet left open through an install can't
     /// clobber the programs/runtime the install registered.
     public func updateBottle(id: UUID, name: String, settings: BottleSettings) async {
+        // A retina change re-applies the Wine registry (a wine process), and
+        // even a name-only save shouldn't land while the runtime is mid-replace
+        // — refuse the whole edit for one consistent maintenance window.
+        guard !blockedByRuntimeMaintenance() else { return }
         do {
             // Retina lives in the Wine registry. Registry first, JSON second:
             // committing JSON before a failing regedit would make the next

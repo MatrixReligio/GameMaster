@@ -151,6 +151,10 @@ public extension AppState {
     /// an already-running program (a second click would start a duplicate).
     /// Unlike `runExe`, the launch is tracked, not fire-and-forget.
     func addProgramAndLaunch(exe: URL, in bottle: Bottle) async {
+        // Refuse BEFORE registering: the launch below would be refused during
+        // maintenance anyway, leaving the program added-but-unlaunched — and
+        // re-dropping the same exe would then duplicate it. Guard up front.
+        guard !blockedByRuntimeMaintenance() else { return }
         let program: Program
         do {
             program = try await programLibrary.addProgram(exe: exe, name: nil, in: bottle)
