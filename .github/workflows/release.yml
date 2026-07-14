@@ -19,14 +19,30 @@ jobs:
     name: Build, Sign, Notarize
     runs-on: macos-26
     steps:
+      - name: Release only from main
+        # workflow_dispatch can target any ref, but a release must be cut from
+        # main (which CI gates on every push) — never an unreviewed branch.
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Release must be run from main, not $GITHUB_REF."
+            exit 1
+          fi
+
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Run tests
-        # Gate the manually-triggered release on the test suite: a broken ref
-        # must not be built, signed, and published. Runs before any secret is
-        # imported so a failure aborts fast. (CI runs the full gate set on push;
-        # this is the safety net for workflow_dispatch from an arbitrary ref.)
-        run: swift test
+      - name: Verify (tests, lint, format, localization)
+        # Mirror CI's gate set so a release validates the exact ref it ships —
+        # not just the tests. Runs before any secret is imported so a failure
+        # aborts fast. (The signed app build below covers the app target + the
+        # generated Info.plist.)
+        run: |
+          set -euo pipefail
+          brew untap aws/tap 2>/dev/null || true
+          brew install swiftlint swiftformat
+          swift test
+          swiftlint lint --strict
+          swiftformat --lint .
+          python3 scripts/check-localizations.py
 
       - name: Install pinned XcodeGen
         # XcodeGen generates the project that gets signed and notarized, so its
