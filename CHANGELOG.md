@@ -4,6 +4,20 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.14] — 2026-07-14
+
+Follow-up hardening from a code-review pass over 0.3.13.
+
+### Fixed
+- **Updating the graphics runtime now stands down every path at once.** A GPTK
+  import raises one maintenance flag that a single checkpoint reads, so *every*
+  way of starting a Windows process — launching, running, stopping, deleting a
+  bottle, changing its settings, or dropping in an installer — waits for the
+  update to finish, with no way for a new path to slip through.
+- **Enabling MetalFX writes its files atomically.** Two bottles preparing
+  MetalFX on the shared runtime at the same time can no longer expose a
+  half-written file or fail each other; each shim is placed in one atomic step.
+
 ## [0.3.13] — 2026-07-14
 
 Hardening and reliability from a code-review pass over 0.3.12, plus a build-
