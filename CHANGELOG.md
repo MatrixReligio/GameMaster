@@ -4,6 +4,30 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.16] — 2026-07-14
+
+Further hardening from a code-review pass over 0.3.15.
+
+### Fixed
+- **Operations on one bottle can no longer collide.** Deleting, installing into,
+  launching, and changing a bottle's settings now take a shared lock on that
+  bottle, so — for example — an install or a launch can't begin on a bottle
+  that's being deleted (and vice versa), whichever you start first.
+- **Installing the graphics runtime is now exclusive.** A second install of the
+  same runtime is refused while one is running, and the install holds the same
+  lock a game launch needs, so it can't replace the runtime out from under a
+  running game.
+- **Steam gives up fast when it can't start.** If the Steam client fails to
+  launch during setup, the installer now reports it immediately instead of
+  waiting out the full download timeout.
+- **A broken Steam UI fix is now reported.** If the web-helper repair that keeps
+  Steam's interface from rendering black can't be applied, the launch reports an
+  actionable error instead of opening an unusable client. Stopping a program
+  never depends on these graphics fixes.
+- **Updating Apple's D3DMetal is crash-safe.** The graphics-runtime import now
+  keeps the previous libraries until the update is fully committed, and rolls
+  back automatically on the next launch if it was interrupted partway.
+
 ## [0.3.15] — 2026-07-14
 
 Further hardening from a code-review pass over 0.3.14.
