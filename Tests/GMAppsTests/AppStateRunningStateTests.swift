@@ -313,6 +313,91 @@ struct AppStateRunningStateTests {
         #expect(state.lastErrorMessage != nil) // refused with a message
         #expect(mounter.mounted.isEmpty) // the import never started
     }
+
+    /// The import lease closes the TOCTOU from the other side too: a launch that
+    /// STARTS while a GPTK import holds the lease is refused, so it can't load a
+    /// half-replaced runtime. (The import blocks on a gated mount to stay in
+    /// flight while the launch is attempted.)
+    @Test func refusesLaunchWhileRuntimeMaintenanceHeld() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: BlockingMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let program = Program(name: "G", windowsPath: "C:\\g.exe")
+
+        // Import acquires the lease, then blocks on the mount — held in flight.
+        let importTask = Task { await state.importGPTK(dmg: dir.appendingPathComponent("eval.dmg")) }
+        while !state.runtimeMaintenanceInProgress {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        state.lastErrorMessage = nil
+        await state.launch(program: program, in: bottle)
+        #expect(state.lastErrorMessage != nil) // launch refused
+        #expect(!state.runningIDs.contains(program.id)) // it never started
+
+        importTask.cancel()
+        _ = await importTask.value
+    }
+
+    /// And from this side: importing is refused while a launch is in flight
+    /// (this-session `runningIDs`), not only when a wineserver is already alive.
+    @Test func refusesGPTKImportWhileALaunchIsInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = GatedLaunchRunner()
+        let mounter = FakeMounter(mountPoint: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: mounter,
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let program = Program(name: "G", windowsPath: "C:\\g.exe")
+
+        let launchTask = Task { await state.launch(program: program, in: bottle) }
+        while !state.runningIDs.contains(program.id) {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        state.lastErrorMessage = nil
+        await state.importGPTK(dmg: dir.appendingPathComponent("eval.dmg"))
+        #expect(state.lastErrorMessage != nil)
+        #expect(mounter.mounted.isEmpty) // import refused, never mounted
+
+        runner.release()
+        await launchTask.value
+    }
+}
+
+/// A DMG mounter that blocks on mount until the task is cancelled, so a test can
+/// hold a GPTK import in flight (lease held) while it drives another action.
+private final class BlockingMounter: DiskImageMounting, @unchecked Sendable {
+    private let mountPoint: URL
+    init(mountPoint: URL) {
+        self.mountPoint = mountPoint
+    }
+
+    func mount(dmg _: URL) async throws -> URL {
+        try await Task.sleep(nanoseconds: 60_000_000_000)
+        return mountPoint
+    }
+
+    func unmount(_: URL) async {}
 }
 
 /// Runner that blocks the program launch (`start /wait`) until released, so a

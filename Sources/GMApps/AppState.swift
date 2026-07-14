@@ -55,6 +55,13 @@ public final class AppState {
     /// seconds (more right after a runtime download, when Rosetta first
     /// translates the wine binaries) — the UI shows progress off this flag.
     public internal(set) var creatingBottle = false
+    /// Held for the whole duration of a shared-runtime maintenance op (GPTK
+    /// import). It's the writer lease: while held, launches / bottle creation /
+    /// installs / runtime downloads refuse to start (they'd use a half-replaced
+    /// runtime); the maintenance op, in turn, refuses to start while any of
+    /// those are already in flight. Acquired synchronously before the op's first
+    /// await so there's no TOCTOU window on @MainActor.
+    public internal(set) var runtimeMaintenanceInProgress = false
     public var lastErrorMessage: String?
     public var selectedBottleID: UUID?
 
@@ -227,6 +234,7 @@ public final class AppState {
     }
 
     public func installDefaultRuntime() async {
+        guard !blockedByRuntimeMaintenance() else { return }
         guard let entry = manifest.defaultEntry else {
             lastErrorMessage = String(localized: "No runtime is configured for this build.")
             return
@@ -268,19 +276,32 @@ public final class AppState {
     private func importGPTK(_ operation: () async throws -> RuntimeDescriptor) async {
         // Importing replaces the shared runtime's libraries, so it needs a quiet
         // maintenance window: refuse while an install/runtime download is writing
-        // or a program is running in any bottle, where a live (or later-spawned)
-        // process could otherwise load a mix of old and new components.
+        // or a program is running/launching in any bottle, where a live (or
+        // later-spawned) process could load a mix of old and new components.
+        // These checks are synchronous (no await) so nothing can slip in between
+        // them and acquiring the lease just below.
         let runtimeInstalling = if case .installing = runtimeStatus {
             true
         } else {
             false
         }
-        if isInstalling || runtimeInstalling {
+        if runtimeMaintenanceInProgress || isInstalling || runtimeInstalling {
             lastErrorMessage = String(
                 localized: "An install is in progress. Wait for it to finish before updating the graphics runtime."
             )
             return
         }
+        if !runningIDs.isEmpty || !launchingIDs.isEmpty {
+            lastErrorMessage = String(
+                localized: "A program is running. Stop it before updating the graphics runtime."
+            )
+            return
+        }
+        // Acquire the writer lease synchronously — before the awaited activity
+        // probe below — so any launch/create/install starting during it is
+        // refused (they read this flag), closing the TOCTOU.
+        runtimeMaintenanceInProgress = true
+        defer { runtimeMaintenanceInProgress = false }
         if await anyBottleActive() {
             lastErrorMessage = String(
                 localized: "A program is running. Stop it before updating the graphics runtime."
@@ -298,6 +319,7 @@ public final class AppState {
     // MARK: - Bottles
 
     public func createBottle(name: String) async {
+        guard !blockedByRuntimeMaintenance() else { return }
         creatingBottle = true
         defer { creatingBottle = false }
         let bottle: Bottle
@@ -426,6 +448,7 @@ public final class AppState {
             lastErrorMessage = String(localized: "Unknown installer.")
             return
         }
+        guard !blockedByRuntimeMaintenance() else { return }
         // One install/migration at a time: a second install — even into another
         // bottle — races prefix writes and clobbers the shared progress/token
         // and the delete-lock (busyBottleIDs). Refuse the concurrent start.

@@ -3445,6 +3445,34 @@
         }
       }
     },
+    "The graphics runtime is being updated. Wait for it to finish, then try again.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グラフィックスランタイムを更新中です。完了してからもう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그래픽 런타임을 업데이트하는 중입니다. 완료된 후 다시 시도하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在更新图形运行时。请等它完成后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在更新圖形執行環境。請等它完成後再試。"
+          }
+        }
+      }
+    },
     "The libraries in this disk image are not signed by Apple, so they were not imported. Download the original from developer.apple.com/download and try again.": {
       "localizations": {
         "ja": {

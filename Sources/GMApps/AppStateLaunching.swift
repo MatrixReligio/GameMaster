@@ -18,6 +18,7 @@ public extension AppState {
     }
 
     func launch(program: Program, in bottle: Bottle) async {
+        guard !blockedByRuntimeMaintenance() else { return }
         runningIDs.insert(program.id)
         // "Launching" spans the click until the program's window appears (or a
         // safety timeout) — Steam's cold start under Wine takes tens of seconds,
@@ -162,6 +163,7 @@ public extension AppState {
     }
 
     func runExe(_ exe: URL, in bottle: Bottle) async {
+        guard !blockedByRuntimeMaintenance() else { return }
         do {
             // Fire-and-forget: the result is wine's `start` helper, which
             // exits nonzero exactly when the program could not be launched.
@@ -261,6 +263,18 @@ public extension AppState {
 
     func report(_ error: any Error) {
         lastErrorMessage = error.localizedDescription
+    }
+
+    /// Refuses (with a message) when a shared-runtime maintenance op holds the
+    /// lease: launches, bottle creation, and installs must not start while the
+    /// runtime is being replaced. Returns true when blocked. Synchronous, so
+    /// callers check it before their first await/state change.
+    func blockedByRuntimeMaintenance() -> Bool {
+        guard runtimeMaintenanceInProgress else { return false }
+        lastErrorMessage = String(
+            localized: "The graphics runtime is being updated. Wait for it to finish, then try again."
+        )
+        return true
     }
 
     /// Icon for a program card. Extracts lazily for programs registered

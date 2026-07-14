@@ -54,6 +54,10 @@ T = {
         ("有安装正在进行。请等它完成后，再更新图形运行时。", "有安裝正在進行。請等它完成後，再更新圖形執行環境。",
          "インストールが進行中です。グラフィックスランタイムを更新する前に完了までお待ちください。",
          "설치가 진행 중입니다. 그래픽 런타임을 업데이트하기 전에 완료될 때까지 기다리세요."),
+    "The graphics runtime is being updated. Wait for it to finish, then try again.":
+        ("正在更新图形运行时。请等它完成后再试。", "正在更新圖形執行環境。請等它完成後再試。",
+         "グラフィックスランタイムを更新中です。完了してからもう一度お試しください。",
+         "그래픽 런타임을 업데이트하는 중입니다. 완료된 후 다시 시도하세요."),
     "Setting up the bottle failed, and its leftover files couldn’t be removed automatically. "
     "Delete the bottle manually.":
         ("游戏瓶设置失败，且其残留文件无法自动删除。请手动删除该游戏瓶。",
