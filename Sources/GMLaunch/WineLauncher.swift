@@ -7,6 +7,7 @@ import GMSystem
 public enum LaunchError: Error, LocalizedError, Equatable {
     case runtimeMissing(id: String)
     case commandFailed(command: String, exitCode: Int32)
+    case runtimeUnderMaintenance
 
     public var errorDescription: String? {
         switch self {
@@ -14,6 +15,8 @@ public enum LaunchError: Error, LocalizedError, Equatable {
             String(localized: "The Windows runtime is not installed yet. Open Settings → Runtime to install it.")
         case let .commandFailed(command, exitCode):
             String(localized: "“\(command)” failed (exit code \(exitCode)). Check the bottle's logs for details.")
+        case .runtimeUnderMaintenance:
+            String(localized: "The graphics runtime is being updated. Wait for it to finish, then try again.")
         }
     }
 }
@@ -26,19 +29,26 @@ public struct WineLauncher: Sendable {
     private let runner: any ProcessRunning
     private let logsRoot: URL
     private let defaultRuntimeID: String
+    /// Read at the single `context(for:)` choke point (and before MetalFX
+    /// prep): while it returns true a GPTK import is replacing the shared
+    /// runtime, so every wine process is refused. Defaults to always-false so
+    /// callers that never import (and tests) need not supply it.
+    private let isUnderMaintenance: @Sendable () -> Bool
 
     public init(
         runtimeStore: RuntimeStore,
         bottleStore: BottleStore,
         runner: any ProcessRunning,
         logsRoot: URL,
-        defaultRuntimeID: String
+        defaultRuntimeID: String,
+        isUnderMaintenance: @escaping @Sendable () -> Bool = { false }
     ) {
         self.runtimeStore = runtimeStore
         self.bottleStore = bottleStore
         self.runner = runner
         self.logsRoot = logsRoot
         self.defaultRuntimeID = defaultRuntimeID
+        self.isUnderMaintenance = isUnderMaintenance
     }
 
     /// Boots a fresh prefix (`wineboot --init`) and applies registry tweaks.
@@ -244,6 +254,14 @@ public struct WineLauncher: Sendable {
     }
 
     private func context(for bottle: Bottle) async throws -> Context {
+        // The single arbiter. EVERY method that starts a wine process resolves
+        // its context here first, so refusing when the shared runtime is under
+        // maintenance (a GPTK import) closes off all of them at once — launch,
+        // run, stop, control commands, taskkill, retina registry, boot — and
+        // any entry point added later, with no new scattered guard to forget.
+        if isUnderMaintenance() {
+            throw LaunchError.runtimeUnderMaintenance
+        }
         let runtimeID = bottle.runtimeID ?? defaultRuntimeID
         guard let descriptor = try await runtimeStore.descriptor(id: runtimeID) else {
             throw LaunchError.runtimeMissing(id: runtimeID)
@@ -268,6 +286,13 @@ public struct WineLauncher: Sendable {
     /// non-destructive and idempotent, so a failure surfaces at launch instead
     /// of running with the env claiming MetalFX while the shim never landed.
     private func prepareMetalFXIfNeeded(for bottle: Bottle) async throws {
+        // launch/run prep the runtime BEFORE resolving context(), so this file
+        // write into the shared runtime must also stand down during a GPTK
+        // import — otherwise the backstop would miss the one path that touches
+        // the runtime ahead of the context() choke point.
+        if isUnderMaintenance() {
+            throw LaunchError.runtimeUnderMaintenance
+        }
         guard bottle.settings.metalFX else { return }
         let runtimeID = bottle.runtimeID ?? defaultRuntimeID
         guard let descriptor = try await runtimeStore.descriptor(id: runtimeID),

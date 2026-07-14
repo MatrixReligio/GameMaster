@@ -319,3 +319,16 @@ public extension AppState {
         return false
     }
 }
+
+public extension AppState {
+    var needsOnboarding: Bool {
+        if case .ready = runtimeStatus {
+            return false
+        }
+        return true
+    }
+
+    var defaultRuntimeID: String {
+        manifest.defaultRuntimeID
+    }
+}

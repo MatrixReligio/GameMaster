@@ -14,7 +14,7 @@ private func tempDir() throws -> URL {
     return url
 }
 
-private struct Env {
+struct Env {
     let root: URL
     let runtimeStore: RuntimeStore
     let bottleStore: BottleStore
@@ -22,7 +22,7 @@ private struct Env {
     let bottle: Bottle
 }
 
-private func makeEnv(dxmt: DXMTStatus = .none) async throws -> Env {
+func makeEnv(dxmt: DXMTStatus = .none) async throws -> Env {
     let root = try tempDir()
     let runtimeStore = RuntimeStore(root: root)
     let descriptor = RuntimeDescriptor(

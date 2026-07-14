@@ -61,7 +61,15 @@ public final class AppState {
     /// runtime); the maintenance op, in turn, refuses to start while any of
     /// those are already in flight. Acquired synchronously before the op's first
     /// await so there's no TOCTOU window on @MainActor.
-    public internal(set) var runtimeMaintenanceInProgress = false
+    ///
+    /// Backed by `maintenanceGate` so it's a SINGLE source of truth: the
+    /// off-actor `WineLauncher` reads the same gate at its `context(for:)`
+    /// choke point and refuses every wine process while it's held. One flag,
+    /// read on both sides — they can't drift.
+    public var runtimeMaintenanceInProgress: Bool {
+        maintenanceGate.isActive
+    }
+
     public var lastErrorMessage: String?
     public var selectedBottleID: UUID?
 
@@ -74,6 +82,9 @@ public final class AppState {
     let installer: RuntimeInstaller
     let importer: GPTKImporter
     let launcher: WineLauncher
+    /// Raised around a GPTK import; read by both this actor (the writer lease
+    /// above) and the off-actor `WineLauncher`. See `runtimeMaintenanceInProgress`.
+    let maintenanceGate: MaintenanceGate
     let appInstaller: AppInstaller
     let programLibrary: ProgramLibrary
     let activityProbe: any PrefixActivityProbing
@@ -156,26 +167,21 @@ public final class AppState {
             runner: toolRunner,
             verifier: CodesignVerifier(runner: toolRunner)
         )
+        let gate = MaintenanceGate()
+        maintenanceGate = gate
         launcher = WineLauncher(
             runtimeStore: runtimeStore,
             bottleStore: bottleStore,
             runner: runner,
             logsRoot: logsRoot,
-            defaultRuntimeID: manifest.defaultRuntimeID
+            defaultRuntimeID: manifest.defaultRuntimeID,
+            // Single arbiter: the launcher refuses every wine process while the
+            // maintenance lease (a GPTK import) is held. Capture the gate, not
+            // self, so it's readable off the main actor.
+            isUnderMaintenance: { gate.isActive }
         )
         appInstaller = AppInstaller(downloader: downloader, launcher: launcher, bottleStore: bottleStore)
         programLibrary = ProgramLibrary(bottleStore: bottleStore)
-    }
-
-    public var needsOnboarding: Bool {
-        if case .ready = runtimeStatus {
-            return false
-        }
-        return true
-    }
-
-    public var defaultRuntimeID: String {
-        manifest.defaultRuntimeID
     }
 
     // MARK: - Lifecycle
@@ -302,9 +308,10 @@ public final class AppState {
         }
         // Acquire the writer lease synchronously — before the awaited activity
         // probe below — so any launch/create/install starting during it is
-        // refused (they read this flag), closing the TOCTOU.
-        runtimeMaintenanceInProgress = true
-        defer { runtimeMaintenanceInProgress = false }
+        // refused (they read this flag), closing the TOCTOU. Raising the gate
+        // also makes the off-actor WineLauncher refuse every wine process.
+        maintenanceGate.setActive(true)
+        defer { maintenanceGate.setActive(false) }
         if await anyBottleActive() {
             lastErrorMessage = String(
                 localized: "A program is running. Stop it before updating the graphics runtime."
