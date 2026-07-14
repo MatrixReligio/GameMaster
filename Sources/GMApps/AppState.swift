@@ -244,6 +244,18 @@ public final class AppState {
             lastErrorMessage = String(localized: "No runtime is configured for this build.")
             return
         }
+        // Installing replaces the runtime directory, exactly like a GPTK import,
+        // so take the WRITER (synchronously, before the first await). It's held
+        // for the whole install, so no wine op runs against the half-replaced
+        // runtime — and a second concurrent install is refused, because its
+        // `blockedByRuntimeMaintenance()` guard above sees the writer held.
+        guard runtimeLease.acquireWriter() else {
+            lastErrorMessage = String(
+                localized: "A program is running. Stop it before updating the graphics runtime."
+            )
+            return
+        }
+        defer { runtimeLease.releaseWriter() }
         runtimeInstallToken += 1
         let token = runtimeInstallToken
         runtimeStatus = .installing(.downloading, 0)
@@ -503,15 +515,6 @@ public final class AppState {
                 guard let self, appInstallToken == token else { return }
                 activeInstall = ActiveInstall(bottleID: bottleID, phase: .downloading, fraction: fraction)
             }
-        }
-    }
-
-    public func removeProgram(id: UUID, from bottle: Bottle) async {
-        do {
-            try await programLibrary.removeProgram(id: id, from: bottle)
-            await refresh()
-        } catch {
-            report(error)
         }
     }
 }

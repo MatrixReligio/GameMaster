@@ -47,6 +47,15 @@ public extension AppState {
         }
     }
 
+    func removeProgram(id: UUID, from bottle: Bottle) async {
+        do {
+            try await programLibrary.removeProgram(id: id, from: bottle)
+            await refresh()
+        } catch {
+            report(error)
+        }
+    }
+
     /// Whether the program should present as running: either this session
     /// launched it, or the bottle's wineserver is alive from a previous app
     /// session (games survive GameMaster quitting by design) — after a
