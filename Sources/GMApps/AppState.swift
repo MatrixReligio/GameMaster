@@ -329,7 +329,19 @@ public final class AppState {
             // to this new bottle's own prefix — then delete it.
             try? await launcher.stopAll(in: bottle)
             try? await bottleStore.delete(id: bottle.id)
-            report(error)
+            // Reflect disk truth. If the rollback couldn't remove the bottle,
+            // say so plainly instead of only reporting the setup failure and
+            // leaving the leftover to reappear silently.
+            await refresh()
+            if bottles.contains(where: { $0.id == bottle.id }) {
+                // swiftlint:disable line_length
+                lastErrorMessage = String(
+                    localized: "Setting up the bottle failed, and its leftover files couldn’t be removed automatically. Delete the bottle manually."
+                )
+                // swiftlint:enable line_length
+            } else {
+                report(error)
+            }
         }
     }
 
@@ -470,27 +482,5 @@ public final class AppState {
         } catch {
             report(error)
         }
-    }
-
-    /// Icon for a program card. Extracts lazily for programs registered
-    /// before icon support (or after Steam's bootstrap replaced the exe).
-    public func iconURL(for program: Program, in bottle: Bottle) async -> URL? {
-        let bottleDirectory = await bottleStore.directory(of: bottle)
-        let url = ProgramIconStore.iconURL(programID: program.id, bottleDirectory: bottleDirectory)
-        if FileManager.default.fileExists(atPath: url.path) {
-            return url
-        }
-        let prefix = await bottleStore.prefixDirectory(of: bottle)
-        let exe = WindowsPath.toUnix(program.windowsPath, prefix: prefix)
-        // Extracting an icon memory-maps and parses the .exe (up to hundreds of
-        // MB) — do it off the main actor so a program card can't stutter the UI.
-        let programID = program.id
-        return await Task.detached(priority: .utility) {
-            ProgramIconStore.extractAndStore(
-                exe: exe,
-                programID: programID,
-                bottleDirectory: bottleDirectory
-            )
-        }.value
     }
 }

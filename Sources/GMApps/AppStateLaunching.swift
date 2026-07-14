@@ -263,6 +263,28 @@ public extension AppState {
         lastErrorMessage = error.localizedDescription
     }
 
+    /// Icon for a program card. Extracts lazily for programs registered
+    /// before icon support (or after Steam's bootstrap replaced the exe).
+    func iconURL(for program: Program, in bottle: Bottle) async -> URL? {
+        let bottleDirectory = await bottleStore.directory(of: bottle)
+        let url = ProgramIconStore.iconURL(programID: program.id, bottleDirectory: bottleDirectory)
+        if FileManager.default.fileExists(atPath: url.path) {
+            return url
+        }
+        let prefix = await bottleStore.prefixDirectory(of: bottle)
+        let exe = WindowsPath.toUnix(program.windowsPath, prefix: prefix)
+        // Extracting an icon memory-maps and parses the .exe (up to hundreds of
+        // MB) — do it off the main actor so a program card can't stutter the UI.
+        let programID = program.id
+        return await Task.detached(priority: .utility) {
+            ProgramIconStore.extractAndStore(
+                exe: exe,
+                programID: programID,
+                bottleDirectory: bottleDirectory
+            )
+        }.value
+    }
+
     /// Probes live whether any bottle currently has a running wineserver — used
     /// to refuse shared-runtime maintenance while a program is running, without
     /// relying on the possibly-stale `activeBottleIDs` snapshot.

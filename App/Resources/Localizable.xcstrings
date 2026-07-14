@@ -2913,6 +2913,34 @@
         }
       }
     },
+    "Setting up the bottle failed, and its leftover files couldn’t be removed automatically. Delete the bottle manually.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ボトルのセットアップに失敗し、残されたファイルを自動的に削除できませんでした。ボトルを手動で削除してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "보틀 설정에 실패했고, 남은 파일을 자동으로 삭제하지 못했습니다. 보틀을 수동으로 삭제하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "游戏瓶设置失败，且其残留文件无法自动删除。请手动删除该游戏瓶。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "遊戲瓶設定失敗，且其殘留檔案無法自動刪除。請手動刪除該遊戲瓶。"
+          }
+        }
+      }
+    },
     "Show in Finder": {
       "localizations": {
         "ja": {

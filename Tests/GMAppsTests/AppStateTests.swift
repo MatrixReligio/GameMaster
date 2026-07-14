@@ -275,6 +275,10 @@ struct AppStateTests {
         runner.setExitCode(1) // wineboot --init fails on first boot
         await state.createBottle(name: "Doomed")
         #expect(state.lastErrorMessage != nil)
+        // Rollback succeeded, so the reported error is the setup failure — not
+        // the "couldn't remove the leftover" message (which is only for a failed
+        // cleanup). This proves the cleanup-success detection doesn't false-alarm.
+        #expect(state.lastErrorMessage?.contains("removed automatically") != true)
 
         // Read fresh from disk: the half-created bottle must be gone, so a
         // later refresh (or restart) can't resurrect it.
