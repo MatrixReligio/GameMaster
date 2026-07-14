@@ -80,6 +80,11 @@ public final class AppState {
     /// off-actor `WineLauncher`: wine ops take readers, a GPTK import takes the
     /// writer. See `runtimeMaintenanceInProgress`.
     let runtimeLease: RuntimeLease
+    /// Per-bottle single-writer/multi-reader lease: delete/install take the
+    /// exclusive lease, launches take a shared one, so a bottle op can't
+    /// penetrate another on the same bottle. The authority for that; the
+    /// `Set<UUID>` flags below remain only for display.
+    let bottleLeases = BottleLeases()
     let appInstaller: AppInstaller
     let programLibrary: ProgramLibrary
     let activityProbe: any PrefixActivityProbing
@@ -394,10 +399,18 @@ public final class AppState {
             )
             return
         }
-        // Hold the bottle's busy lock synchronously (before the first await) for
-        // the whole delete: stopAll and the delete itself run after awaits, and
-        // a GPTK import — which refuses while any bottle is busy — must not slip
-        // into that window and start replacing the runtime mid-delete.
+        // Take the bottle's EXCLUSIVE lease synchronously (before the first
+        // await): it fails if a launch/install/another delete is in flight on
+        // this bottle, so none of them can start once we hold it. This — not the
+        // busyBottleIDs set below — is what keeps install/launch from racing the
+        // prefix removal. Held for the whole delete.
+        guard bottleLeases.acquireExclusive(bottle.id) else {
+            lastErrorMessage = String(
+                localized: "This bottle is busy with another operation. Wait for it to finish, then try again."
+            )
+            return
+        }
+        defer { bottleLeases.releaseExclusive(bottle.id) }
         busyBottleIDs.insert(bottle.id)
         defer { busyBottleIDs.remove(bottle.id) }
         // Probe live (not the cached set): the user may have just stopped the
@@ -413,36 +426,6 @@ public final class AppState {
         do {
             try? await launcher.stopAll(in: bottle)
             try await bottleStore.delete(id: bottle.id)
-            await refresh()
-        } catch {
-            report(error)
-        }
-    }
-
-    /// Saves the settings sheet's fields — name and settings ONLY — on the
-    /// bottle's current state, so a sheet left open through an install can't
-    /// clobber the programs/runtime the install registered.
-    public func updateBottle(id: UUID, name: String, settings: BottleSettings) async {
-        // A retina change re-applies the Wine registry (a wine process), and
-        // even a name-only save shouldn't land while the runtime is mid-replace
-        // — refuse the whole edit for one consistent maintenance window.
-        guard !blockedByRuntimeMaintenance() else { return }
-        do {
-            // Retina lives in the Wine registry. Registry first, JSON second:
-            // committing JSON before a failing regedit would make the next
-            // same-value save read as "unchanged" and never retry, leaving
-            // the two permanently split. The change check uses the bottle's
-            // current ON-DISK value for the same reason.
-            let current = try await bottleStore.list().first { $0.id == id }
-            if var staged = current, staged.settings.retinaMode != settings.retinaMode {
-                staged.name = name
-                staged.settings = settings
-                try await launcher.applyRetinaRegistry(in: staged)
-            }
-            try await bottleStore.update(id: id) { bottle in
-                bottle.name = name
-                bottle.settings = settings
-            }
             await refresh()
         } catch {
             report(error)
@@ -472,6 +455,16 @@ public final class AppState {
             return
         }
         let bottleID = bottle.id
+        // Exclusive lease (synchronous, before the first await): fails if this
+        // bottle is being deleted or launched into, so an install can't race a
+        // delete's prefix removal (or a launch). Held for the whole install.
+        guard bottleLeases.acquireExclusive(bottleID) else {
+            lastErrorMessage = String(
+                localized: "This bottle is busy with another operation. Wait for it to finish, then try again."
+            )
+            return
+        }
+        defer { bottleLeases.releaseExclusive(bottleID) }
         appInstallToken += 1
         let token = appInstallToken
         activeInstall = ActiveInstall(bottleID: bottleID, phase: .downloading, fraction: 0)

@@ -3529,6 +3529,34 @@
         }
       }
     },
+    "This bottle is busy with another operation. Wait for it to finish, then try again.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このボトルは別の操作を実行中です。完了してからもう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 보틀은 다른 작업을 처리 중입니다. 완료된 후 다시 시도하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此瓶子正忙于另一项操作。请等待其完成后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此瓶子正忙於另一項操作。請等待其完成後再試。"
+          }
+        }
+      }
+    },
     "This bottle no longer exists on disk.": {
       "localizations": {
         "ja": {

@@ -8,6 +8,45 @@ import GMSystem
 // MARK: - Launching, stopping, and runtime queries
 
 public extension AppState {
+    /// Saves the settings sheet's fields — name and settings ONLY — on the
+    /// bottle's current state, so a sheet left open through an install can't
+    /// clobber the programs/runtime the install registered.
+    func updateBottle(id: UUID, name: String, settings: BottleSettings) async {
+        // A retina change re-applies the Wine registry (a wine process), and
+        // even a name-only save shouldn't land while the runtime is mid-replace
+        // — refuse the whole edit for one consistent maintenance window.
+        guard !blockedByRuntimeMaintenance() else { return }
+        // Shared bottle lease: a settings save is compatible with a running game
+        // (both readers) but must be excluded from a delete/install (writer).
+        guard bottleLeases.acquireShared(id) else {
+            lastErrorMessage = String(
+                localized: "This bottle is busy with another operation. Wait for it to finish, then try again."
+            )
+            return
+        }
+        defer { bottleLeases.releaseShared(id) }
+        do {
+            // Retina lives in the Wine registry. Registry first, JSON second:
+            // committing JSON before a failing regedit would make the next
+            // same-value save read as "unchanged" and never retry, leaving
+            // the two permanently split. The change check uses the bottle's
+            // current ON-DISK value for the same reason.
+            let current = try await bottleStore.list().first { $0.id == id }
+            if var staged = current, staged.settings.retinaMode != settings.retinaMode {
+                staged.name = name
+                staged.settings = settings
+                try await launcher.applyRetinaRegistry(in: staged)
+            }
+            try await bottleStore.update(id: id) { bottle in
+                bottle.name = name
+                bottle.settings = settings
+            }
+            await refresh()
+        } catch {
+            report(error)
+        }
+    }
+
     /// Whether the program should present as running: either this session
     /// launched it, or the bottle's wineserver is alive from a previous app
     /// session (games survive GameMaster quitting by design) — after a
@@ -25,6 +64,17 @@ public extension AppState {
         // fixups on one prefix concurrently. This insert is synchronous (before
         // the first await), so the re-entrant call sees it and bails.
         guard !runningIDs.contains(program.id), !launchingIDs.contains(program.id) else { return }
+        // Shared lease on the bottle (synchronous, before the first await),
+        // held for the whole session: fails while a delete/install holds the
+        // bottle exclusively, so a launch can't enter a prefix being removed or
+        // installed into; and while held, a delete/install is refused.
+        guard bottleLeases.acquireShared(bottle.id) else {
+            lastErrorMessage = String(
+                localized: "This bottle is busy with another operation. Wait for it to finish, then try again."
+            )
+            return
+        }
+        defer { bottleLeases.releaseShared(bottle.id) }
         runningIDs.insert(program.id)
         // "Launching" spans the click until the program's window appears (or a
         // safety timeout) — Steam's cold start under Wine takes tens of seconds,
@@ -161,6 +211,17 @@ public extension AppState {
         // maintenance anyway, leaving the program added-but-unlaunched — and
         // re-dropping the same exe would then duplicate it. Guard up front.
         guard !blockedByRuntimeMaintenance() else { return }
+        // Shared bottle lease before registering: `addProgram` mutates the
+        // bottle, so a concurrent delete must be excluded from here, not just
+        // from the nested launch. The nested launch takes its own (stacking)
+        // shared reader.
+        guard bottleLeases.acquireShared(bottle.id) else {
+            lastErrorMessage = String(
+                localized: "This bottle is busy with another operation. Wait for it to finish, then try again."
+            )
+            return
+        }
+        defer { bottleLeases.releaseShared(bottle.id) }
         // `addProgram` is an actor hop, so mark a launch in flight synchronously
         // (before that await) so a GPTK import can't raise the lease during the
         // register-then-launch window and still leave the program added but
@@ -183,6 +244,13 @@ public extension AppState {
 
     func runExe(_ exe: URL, in bottle: Bottle) async {
         guard !blockedByRuntimeMaintenance() else { return }
+        guard bottleLeases.acquireShared(bottle.id) else {
+            lastErrorMessage = String(
+                localized: "This bottle is busy with another operation. Wait for it to finish, then try again."
+            )
+            return
+        }
+        defer { bottleLeases.releaseShared(bottle.id) }
         // Mark a launch in flight (synchronously, before the await) so a GPTK
         // import — which refuses while launchingIDs is non-empty — can't swap
         // the shared runtime while wine loads this program. A synthetic id (not

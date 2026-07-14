@@ -228,6 +228,89 @@ struct AppStateMaintenanceGuardTests {
         runner.release()
         await updateTask.value
     }
+
+    // MARK: - Reverse guards: a delete in flight excludes other bottle ops
+
+    /// deleteBottle takes the bottle's EXCLUSIVE lease before its first await and
+    /// holds it across stopAll. These prove install / launch / settings-save on
+    /// the SAME bottle are refused while that delete is in flight — the reverse
+    /// direction the old busyBottleIDs set never covered.
+    private struct DeleteInFlight {
+        let state: AppState
+        let bottle: Bottle
+        let task: Task<Void, Never>
+    }
+
+    private func deleteInFlight(dir: URL, runner: GatedStopRunner) async throws -> DeleteInFlight {
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let deleteTask = Task { await state.deleteBottle(bottle) }
+        var inFlight = false
+        for _ in 0 ..< 200 where !inFlight {
+            if runner.reached {
+                inFlight = true
+            } else {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+        #expect(inFlight)
+        state.lastErrorMessage = nil
+        return DeleteInFlight(state: state, bottle: bottle, task: deleteTask)
+    }
+
+    @Test func refusesInstallWhileADeleteIsInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let runner = GatedStopRunner()
+        let flight = try await deleteInFlight(dir: dir, runner: runner)
+
+        await flight.state.installCatalogApp(id: "steam", into: flight.bottle)
+        #expect(flight.state.lastErrorMessage != nil)
+        #expect(flight.state.activeInstall == nil) // install never started
+
+        runner.release()
+        await flight.task.value
+    }
+
+    @Test func refusesLaunchWhileADeleteIsInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let runner = GatedStopRunner()
+        let flight = try await deleteInFlight(dir: dir, runner: runner)
+
+        let program = Program(name: "Game", windowsPath: "C:\\game.exe")
+        await flight.state.launch(program: program, in: flight.bottle)
+        #expect(flight.state.lastErrorMessage != nil)
+        #expect(!flight.state.runningIDs.contains(program.id)) // launch never started
+
+        runner.release()
+        await flight.task.value
+    }
+
+    @Test func refusesSettingsSaveWhileADeleteIsInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let runner = GatedStopRunner()
+        let flight = try await deleteInFlight(dir: dir, runner: runner)
+
+        await flight.state.updateBottle(id: flight.bottle.id, name: "Renamed", settings: flight.bottle.settings)
+        #expect(flight.state.lastErrorMessage != nil)
+
+        runner.release()
+        await flight.task.value
+        // The delete won, so the bottle (and the would-be rename) is gone.
+        #expect(!flight.state.bottles.contains { $0.id == flight.bottle.id })
+    }
 }
 
 /// Runner that blocks `wineserver -k` until released, so a test can hold a
