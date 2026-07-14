@@ -1,5 +1,6 @@
 import Foundation
 import GMLaunch
+import GMRuntime
 
 /// Replaces Steam's crashing 32-bit `steamservice.exe` with a no-op stub.
 ///
@@ -36,14 +37,12 @@ public enum SteamServiceStub {
                 continue
             }
 
-            // Back up the genuine service, then drop the stub in its place.
+            // Back up the genuine service, then drop the stub in its place —
+            // both atomically: wine loads this executable, and two launches can
+            // touch one prefix, so no removeItem→copyItem gap must be visible.
             let backup = target.appendingPathExtension("real")
-            if fm.fileExists(atPath: backup.path) {
-                try fm.removeItem(at: backup)
-            }
-            try fm.copyItem(at: target, to: backup)
-            try fm.removeItem(at: target)
-            try fm.copyItem(at: stubResource, to: target)
+            try AtomicFile.replace(at: backup, withCopyOf: target)
+            try AtomicFile.replace(at: target, withCopyOf: stubResource)
         }
     }
 

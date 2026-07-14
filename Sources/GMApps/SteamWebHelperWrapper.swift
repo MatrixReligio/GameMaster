@@ -1,5 +1,6 @@
 import Foundation
 import GMLaunch
+import GMRuntime
 
 /// Installs (and repairs) Steam's CEF web-helper wrapper inside a prefix.
 ///
@@ -42,19 +43,15 @@ public enum SteamWebHelperWrapper {
 
         // If the genuine binary is sitting in the helper slot (first install, or
         // a Steam update replaced our wrapper), capture it as the real helper.
+        // Placed atomically: wine loads this executable, and two launches can
+        // touch one prefix, so a removeItem→copyItem gap must never be visible.
         if fileSize(of: helper) > realHelperMinBytes {
-            if fm.fileExists(atPath: realHelper.path) {
-                try fm.removeItem(at: realHelper)
-            }
-            try fm.copyItem(at: helper, to: realHelper)
+            try AtomicFile.replace(at: realHelper, withCopyOf: helper)
         }
 
         // Only overwrite the helper slot once we have a real backup to forward to.
         guard fm.fileExists(atPath: realHelper.path) else { return }
-        if fm.fileExists(atPath: helper.path) {
-            try fm.removeItem(at: helper)
-        }
-        try fm.copyItem(at: wrapperResource, to: helper)
+        try AtomicFile.replace(at: helper, withCopyOf: wrapperResource)
     }
 
     /// Bundled wrapper resource URL, if present.

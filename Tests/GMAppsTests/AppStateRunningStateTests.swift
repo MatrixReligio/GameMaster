@@ -226,6 +226,37 @@ struct AppStateRunningStateTests {
         #expect(!state.runningIDs.contains(program.id))
     }
 
+    /// The UI hides Play while a program launches, but a second window shares
+    /// this AppState — so launch() must itself refuse a program already
+    /// starting/running, or two Play clicks run the Steam binary fixups on one
+    /// prefix concurrently. No second `start` is ever spawned.
+    @Test func launchRefusesAProgramAlreadyInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = FakeRunner()
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: FakeMounter(mountPoint: dir),
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let program = Program(name: "Game", windowsPath: "C:\\game.exe")
+
+        // Simulate the program already in flight (a first click, or a second
+        // window racing it, would leave it in launchingIDs).
+        state.launchingIDs.insert(program.id)
+        let starts = { runner.invocations.count { $0.arguments.first == "start" } }
+        let before = starts()
+        await state.launch(program: program, in: bottle)
+        #expect(starts() == before) // refused — no second start spawned
+    }
+
     /// A Stop that times out (program refuses to die — a save dialog, Steam
     /// updating) must not leave the card stuck showing "Closing…" with no
     /// button. After the timeout the program reverts to Running + Stop and its

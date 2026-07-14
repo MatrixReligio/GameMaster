@@ -19,6 +19,12 @@ public extension AppState {
 
     func launch(program: Program, in bottle: Bottle) async {
         guard !blockedByRuntimeMaintenance() else { return }
+        // Refuse a second launch of a program already starting/running. The UI
+        // hides Play once it's launching, but a second window shares this same
+        // AppState, so two Play clicks could otherwise run the Steam binary
+        // fixups on one prefix concurrently. This insert is synchronous (before
+        // the first await), so the re-entrant call sees it and bails.
+        guard !runningIDs.contains(program.id), !launchingIDs.contains(program.id) else { return }
         runningIDs.insert(program.id)
         // "Launching" spans the click until the program's window appears (or a
         // safety timeout) — Steam's cold start under Wine takes tens of seconds,

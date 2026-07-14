@@ -24,13 +24,12 @@ Further hardening from a code-review pass over 0.3.14.
 Follow-up hardening from a code-review pass over 0.3.13.
 
 ### Fixed
-- **Updating the graphics runtime stands down the main entry points.** A GPTK
-  import raises a maintenance flag that a single checkpoint reads, so launching,
-  running, stopping, deleting a bottle, changing its settings, or dropping in an
-  installer are refused while the update is underway.
-- **Enabling MetalFX writes its files atomically.** Two bottles preparing
-  MetalFX on the shared runtime at the same time can no longer expose a
-  half-written file or fail each other; each shim is placed in one atomic step.
+- **Updating the graphics runtime is refused while other work is underway.** A
+  GPTK import stands down while a program is launching or running, a bottle is
+  being created or deleted, or an install is in progress.
+- **Activating MetalFX's shared shim is written atomically.** Two bottles
+  preparing MetalFX on the shared runtime at the same time can no longer expose
+  a half-written shim or fail each other.
 
 ## [0.3.13] — 2026-07-14
 
