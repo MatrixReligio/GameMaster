@@ -284,6 +284,12 @@ struct AppStateTests {
         // later refresh (or restart) can't resurrect it.
         await state.refresh()
         #expect(state.bottles.isEmpty)
+        // Stronger than the listing (which skips dirs without bottle.json):
+        // no bottle DIRECTORY may remain on disk — that's the residue the
+        // rollback's directory-level check now guards against.
+        let bottlesDir = dir.appendingPathComponent("approot/bottles")
+        let leftover = (try? FileManager.default.contentsOfDirectory(atPath: bottlesDir.path)) ?? []
+        #expect(leftover.isEmpty)
     }
 
     /// Install progress belongs to the bottle being installed into. While an

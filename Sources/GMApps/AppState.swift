@@ -329,11 +329,13 @@ public final class AppState {
             // to this new bottle's own prefix — then delete it.
             try? await launcher.stopAll(in: bottle)
             try? await bottleStore.delete(id: bottle.id)
-            // Reflect disk truth. If the rollback couldn't remove the bottle,
-            // say so plainly instead of only reporting the setup failure and
-            // leaving the leftover to reappear silently.
+            // Reflect disk truth. Check the bottle's directory directly, not the
+            // listing: a partial delete could remove bottle.json but leave the
+            // dir/prefix, which the listing skips — so `bottles` wouldn't show it
+            // yet the leftover files are still there.
             await refresh()
-            if bottles.contains(where: { $0.id == bottle.id }) {
+            let bottleDirectory = await bottleStore.directory(of: bottle)
+            if FileManager.default.fileExists(atPath: bottleDirectory.path) {
                 // swiftlint:disable line_length
                 lastErrorMessage = String(
                     localized: "Setting up the bottle failed, and its leftover files couldn’t be removed automatically. Delete the bottle manually."
