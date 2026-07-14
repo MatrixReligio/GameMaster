@@ -195,7 +195,9 @@ public final class AppState {
             // refresh (bottles + runtime status must still load).
             if !didRecoverRuntimeBackups {
                 do {
-                    try await RuntimeInstaller.recoverOrphanedBackups(in: runtimeStore.runtimesDirectory)
+                    let runtimesDir = await runtimeStore.runtimesDirectory
+                    try await RuntimeInstaller.recoverOrphanedBackups(in: runtimesDir)
+                    try RuntimeInstaller.recoverInterruptedGPTKImports(in: runtimesDir)
                     didRecoverRuntimeBackups = true
                 } catch {
                     report(error)

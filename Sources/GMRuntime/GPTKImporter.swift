@@ -130,10 +130,31 @@ public struct GPTKImporter: Sendable {
                 throw RuntimeError.dmgLayoutUnrecognized
             }
         }
-        try RuntimeInstaller.replaceDirectory(at: libDir, with: staging)
-
-        descriptor.gptk = .installed(version: Self.versionString(from: volume.lastPathComponent))
-        try await store.save(descriptor)
+        // Transactional swap: keep the old lib as a backup and mark the runtime
+        // "import pending" until the metadata commit succeeds. A failure — or a
+        // crash recovered at startup — rolls the old lib back, so the runtime and
+        // its saved metadata never disagree. (replaceDirectory deleted the backup
+        // BEFORE the metadata was saved, so a crash there stranded the new lib.)
+        let backup = wineRoot.appendingPathComponent(".lib.old-\(UUID().uuidString)", isDirectory: true)
+        let marker = await store.runtimeDirectory(id: runtimeID)
+            .appendingPathComponent(RuntimeInstaller.gptkImportMarkerName)
+        try fm.moveItem(at: libDir, to: backup)
+        try JSONEncoder().encode(
+            RuntimeInstaller.GPTKImportTransaction(libPath: libDir.path, backupPath: backup.path)
+        ).write(to: marker)
+        do {
+            try fm.moveItem(at: staging, to: libDir)
+            descriptor.gptk = .installed(version: Self.versionString(from: volume.lastPathComponent))
+            try await store.save(descriptor) // commit point
+        } catch {
+            // Roll back to the old lib; the on-disk descriptor is untouched.
+            try? fm.removeItem(at: libDir)
+            try? fm.moveItem(at: backup, to: libDir)
+            try? fm.removeItem(at: marker)
+            throw error
+        }
+        try? fm.removeItem(at: marker) // committed — drop the marker first, then the backup
+        try? fm.removeItem(at: backup)
         return descriptor
     }
 

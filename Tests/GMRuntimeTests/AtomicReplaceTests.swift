@@ -113,3 +113,46 @@ struct AtomicReplaceTests {
         #expect(try String(contentsOf: destination.appendingPathComponent("wine"), encoding: .utf8) == "new")
     }
 }
+
+@Suite("GPTK import recovery")
+struct GPTKImportRecoveryTests {
+    /// A crash between the lib swap and the metadata commit leaves the marker;
+    /// recovery restores the OLD lib so the runtime and its metadata agree.
+    @Test func recoverRollsBackAnInterruptedImport() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let runtimesRoot = dir.appendingPathComponent("runtimes")
+        let runtimeDir = runtimesRoot.appendingPathComponent("rt")
+        let wineRoot = runtimeDir.appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine")
+        let lib = wineRoot.appendingPathComponent("lib")
+        let backup = wineRoot.appendingPathComponent(".lib.old-ABC")
+        try FileManager.default.createDirectory(at: lib, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
+        try Data("new".utf8).write(to: lib.appendingPathComponent("d3dmetal"))
+        try Data("old".utf8).write(to: backup.appendingPathComponent("d3dmetal"))
+        let marker = runtimeDir.appendingPathComponent(".gptk-import-txn.json")
+        try JSONEncoder().encode(
+            RuntimeInstaller.GPTKImportTransaction(libPath: lib.path, backupPath: backup.path)
+        ).write(to: marker)
+
+        try RuntimeInstaller.recoverInterruptedGPTKImports(in: runtimesRoot)
+
+        #expect(try String(contentsOf: lib.appendingPathComponent("d3dmetal"), encoding: .utf8) == "old")
+        #expect(!FileManager.default.fileExists(atPath: backup.path))
+        #expect(!FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    /// A committed runtime has no marker, so recovery leaves it untouched.
+    @Test func recoverLeavesACommittedRuntimeAlone() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let runtimesRoot = dir.appendingPathComponent("runtimes")
+        let lib = runtimesRoot.appendingPathComponent("rt/wine/lib")
+        try FileManager.default.createDirectory(at: lib, withIntermediateDirectories: true)
+        try Data("committed".utf8).write(to: lib.appendingPathComponent("d3dmetal"))
+
+        try RuntimeInstaller.recoverInterruptedGPTKImports(in: runtimesRoot)
+
+        #expect(try String(contentsOf: lib.appendingPathComponent("d3dmetal"), encoding: .utf8) == "committed")
+    }
+}

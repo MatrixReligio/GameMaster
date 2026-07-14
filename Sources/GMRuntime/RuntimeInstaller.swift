@@ -152,4 +152,47 @@ public struct RuntimeInstaller: Sendable {
         }
         try? fm.removeItem(at: backup)
     }
+
+    /// Written to a runtime's root while a GPTK import swaps its nested `lib/`,
+    /// and deleted once the metadata commit succeeds. If it survives to the next
+    /// launch the import was interrupted BEFORE committing, so recovery rolls the
+    /// old `lib/` back — otherwise a crash between the lib swap and the metadata
+    /// save left the new lib with stale metadata (and the old
+    /// remove-the-backup-first path left no way back at all).
+    public struct GPTKImportTransaction: Codable, Equatable {
+        public var libPath: String
+        public var backupPath: String
+        public init(libPath: String, backupPath: String) {
+            self.libPath = libPath
+            self.backupPath = backupPath
+        }
+    }
+
+    static let gptkImportMarkerName = ".gptk-import-txn.json"
+
+    /// Rolls back GPTK imports interrupted before their metadata commit. Scans
+    /// each runtime's root (top level — the marker lives there so recovery needs
+    /// no knowledge of the nested wine layout) for a leftover transaction marker
+    /// and, finding one, restores the backed-up `lib/`. Call once at startup.
+    public static func recoverInterruptedGPTKImports(in runtimesRoot: URL) throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: runtimesRoot.path) else { return }
+        for runtimeName in try fm.contentsOfDirectory(atPath: runtimesRoot.path) {
+            let markerURL = runtimesRoot.appendingPathComponent(runtimeName, isDirectory: true)
+                .appendingPathComponent(gptkImportMarkerName)
+            guard fm.fileExists(atPath: markerURL.path),
+                  let data = try? Data(contentsOf: markerURL),
+                  let txn = try? JSONDecoder().decode(GPTKImportTransaction.self, from: data)
+            else { continue }
+            // Marker present ⇒ the import didn't finish committing ⇒ restore the
+            // old lib so the runtime and its saved metadata stay consistent.
+            let lib = URL(fileURLWithPath: txn.libPath)
+            let backup = URL(fileURLWithPath: txn.backupPath)
+            if fm.fileExists(atPath: backup.path) {
+                try? fm.removeItem(at: lib)
+                try? fm.moveItem(at: backup, to: lib)
+            }
+            try? fm.removeItem(at: markerURL)
+        }
+    }
 }

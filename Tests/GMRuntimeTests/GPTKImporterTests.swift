@@ -186,6 +186,15 @@ struct GPTKImporterTests {
         let saved = try await store.descriptor(id: "rt")
         #expect(saved?.gptk == .installed(version: "3.0"))
         #expect(mounter.unmounted.count == 1)
+        // …and a committed import leaves no transaction marker or lib backup.
+        let runtimeDir = await store.runtimeDirectory(id: "rt")
+        #expect(!FileManager.default.fileExists(
+            atPath: runtimeDir.appendingPathComponent(".gptk-import-txn.json").path
+        ))
+        let wineRoot = lib.deletingLastPathComponent()
+        let backups = try FileManager.default.contentsOfDirectory(atPath: wineRoot.path)
+            .filter { $0.hasPrefix(".lib.old-") }
+        #expect(backups.isEmpty)
     }
 
     /// The detector picks candidates by FILE NAME, and the overlay copies
