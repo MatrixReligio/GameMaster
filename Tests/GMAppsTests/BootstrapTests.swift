@@ -360,4 +360,67 @@ struct AppInstallerBootstrapTests {
         #expect(saved.programs.isEmpty)
         #expect(saved.runtimeID == "rt")
     }
+
+    /// If the client can't even launch (nonzero `start` helper exit), the
+    /// bootstrap must fail FAST with an actionable error — not poll a ready file
+    /// that can never appear until the (here, long) timeout elapses.
+    @Test func bootstrapFailsFastWhenFirstLaunchExitsNonzero() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let fixture = env.root.appendingPathComponent("installer.exe")
+        try Data("MZ".utf8).write(to: fixture)
+        let launcher = WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: BootstrapLaunchFailRunner(),
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+        let installer = AppInstaller(
+            downloader: FakeDownloader(fixture: fixture),
+            launcher: launcher,
+            bottleStore: env.bottleStore
+        )
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let steamDir = steamDirectory(in: prefix)
+        try FileManager.default.createDirectory(at: steamDir, withIntermediateDirectories: true)
+        try Data("MZ".utf8).write(to: steamDir.appendingPathComponent("steam.exe"))
+
+        let entry = try InstallerCatalog.Entry(
+            id: "steam",
+            name: "Steam",
+            downloadURL: #require(URL(string: "https://example/SteamSetup.exe")),
+            installerFileName: "SteamSetup.exe",
+            silentArguments: ["/S"],
+            installedWindowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
+            launchArguments: [],
+            bootstrap: .init(
+                readyWindowsPath: "C:\\Program Files (x86)\\Steam\\steamui.dll",
+                readyMinBytes: 10_000_000,
+                timeoutSeconds: 600 // long: the fix must throw before ever polling
+            ),
+            runRuntimeID: "wine-staging-11.10"
+        )
+        await #expect(throws: InstallError.installerFailed(name: "Steam", exitCode: 1)) {
+            _ = try await installer.install(entry, into: env.bottle, progress: nil)
+        }
+    }
+}
+
+/// Runner that fails only the Steam client launch (steam.exe) — the silent
+/// installer and every other command succeed — so the bootstrap's FIRST launch
+/// exits nonzero.
+private final class BootstrapLaunchFailRunner: ProcessRunning, @unchecked Sendable {
+    func run(
+        executable _: URL,
+        arguments: [String],
+        environment _: [String: String]?,
+        currentDirectory _: URL?,
+        outputLine _: (@Sendable (String) -> Void)?
+    ) async throws -> ProcessResult {
+        if arguments.contains(where: { $0.hasSuffix("steam.exe") }) {
+            return ProcessResult(exitCode: 1)
+        }
+        return ProcessResult(exitCode: 0)
+    }
 }

@@ -251,8 +251,15 @@ public struct AppInstaller: Sendable {
         let baselineFailures = Self.failureCount(in: failureLog, patterns: spec.failureLogPatterns)
 
         // wait:false — `wine start /unix` returns while Steam keeps running.
+        // The FIRST launch propagates: a thrown error or a nonzero `start`
+        // helper exit means the client never launched, so fail fast with an
+        // actionable error instead of sitting out the whole timeout polling for
+        // a ready file that can never appear.
         let bootstrapArguments = spec.launchArguments ?? entry.launchArguments
-        _ = try? await launcher.run(exe: exe, arguments: bootstrapArguments, in: bottle, wait: false)
+        let firstLaunch = try await launcher.run(exe: exe, arguments: bootstrapArguments, in: bottle, wait: false)
+        guard firstLaunch.exitCode == 0 else {
+            throw InstallError.installerFailed(name: entry.name, exitCode: firstLaunch.exitCode)
+        }
         let deadline = Date().addingTimeInterval(TimeInterval(spec.timeoutSeconds))
         var ready = false
         var offline = false
@@ -283,9 +290,7 @@ public struct AppInstaller: Sendable {
             }
             if failures > handledFailures {
                 handledFailures = failures
-                try? await launcher.stopAll(in: bottle)
-                try await Task.sleep(nanoseconds: 2_000_000_000)
-                _ = try? await launcher.run(exe: exe, arguments: bootstrapArguments, in: bottle, wait: false)
+                try await relaunchBootstrapClient(exe: exe, arguments: bootstrapArguments, in: bottle)
                 relaunches += 1
                 lastActivityAt = Date()
                 continue
@@ -301,9 +306,7 @@ public struct AppInstaller: Sendable {
                 lastActivityAt = Date()
             } else if Date().timeIntervalSince(lastActivityAt) >= bootstrapStallSeconds,
                       relaunches < Self.maxBootstrapRelaunches {
-                try? await launcher.stopAll(in: bottle)
-                try await Task.sleep(nanoseconds: 2_000_000_000)
-                _ = try? await launcher.run(exe: exe, arguments: bootstrapArguments, in: bottle, wait: false)
+                try await relaunchBootstrapClient(exe: exe, arguments: bootstrapArguments, in: bottle)
                 relaunches += 1
                 lastActivityAt = Date()
             }
@@ -316,6 +319,15 @@ public struct AppInstaller: Sendable {
             throw InstallError.bootstrapOffline(name: entry.name)
         }
         guard ready else { throw InstallError.bootstrapTimedOut(name: entry.name) }
+    }
+
+    /// Kills leftover client processes and relaunches the bootstrap client so
+    /// its download resumes. The sleep is `try await` so a cancelled install
+    /// propagates out of the poll loop; the launch itself is best-effort.
+    private func relaunchBootstrapClient(exe: URL, arguments: [String], in bottle: Bottle) async throws {
+        try? await launcher.stopAll(in: bottle)
+        try await Task.sleep(nanoseconds: 2_000_000_000)
+        _ = try? await launcher.run(exe: exe, arguments: arguments, in: bottle, wait: false)
     }
 
     /// Counts failed download attempts recorded in the bootstrapper's log.
