@@ -11,13 +11,17 @@ on:
         description: "Version tag, e.g. v0.1.0"
         required: true
 
-permissions:
-  contents: write
-
 jobs:
-  release:
-    name: Build, Sign, Notarize
+  # Gate job: runs the full CI gate set with NO secrets and read-only
+  # permissions. Floating Homebrew tools (swiftlint/swiftformat) are installed
+  # ONLY here, where a malicious formula/postinstall can't reach the signing
+  # certificate, notarization key, Sparkle private key, or a write token — those
+  # live exclusively in the `release` job below, which installs no Homebrew.
+  verify:
+    name: Verify (tests, lint, format, localization)
     runs-on: macos-26
+    permissions:
+      contents: read
     steps:
       - name: Release only from main
         # workflow_dispatch can target any ref, but a release must be cut from
@@ -30,11 +34,10 @@ jobs:
 
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Verify (tests, lint, format, localization)
-        # Mirror CI's gate set so a release validates the exact ref it ships —
-        # not just the tests. Runs before any secret is imported so a failure
-        # aborts fast. (The signed app build below covers the app target + the
-        # generated Info.plist.)
+      - name: Run gates
+        # Mirror CI so the release validates the exact ref it ships. Isolated to
+        # this secret-free job so the Homebrew install can't taint the signed
+        # artifact or leak credentials.
         run: |
           set -euo pipefail
           brew untap aws/tap 2>/dev/null || true
@@ -44,11 +47,29 @@ jobs:
           swiftformat --lint .
           python3 scripts/check-localizations.py
 
+  release:
+    name: Build, Sign, Notarize
+    needs: verify
+    runs-on: macos-26
+    permissions:
+      contents: write
+    steps:
+      - name: Release only from main
+        # Defense in depth: `needs: verify` already gates on the guarded verify
+        # job, but re-check here so this secret-bearing job never runs off main.
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Release must be run from main, not $GITHUB_REF."
+            exit 1
+          fi
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
       - name: Install pinned XcodeGen
-        # XcodeGen generates the project that gets signed and notarized, so its
-        # version is a build input — pinned + checksum-verified (not a floating
-        # brew formula) to keep the signed artifact reproducible. release.sh
-        # picks it up from PATH.
+        # Every build input in this signing job is pinned + checksum-verified
+        # (never a floating brew formula) so the signed artifact is reproducible
+        # and no unvetted code runs alongside the secrets. release.sh picks it
+        # up from PATH.
         env:
           XCODEGEN_VERSION: "2.45.4"
           XCODEGEN_SHA256: "090ec29491aad50aec10631bf6e62253fed733c50f3aab0f5ffc86bc170bdbef"
