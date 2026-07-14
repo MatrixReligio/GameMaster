@@ -573,4 +573,25 @@ struct MetalFXEnablerTests {
             try await MetalFXEnabler(store: store).prepare(runtimeID: "rt", prefix: prefix)
         }
     }
+
+    /// MetalFX needs BOTH the unix `nvngx.so` (loaded by wine) and the windows
+    /// `nvngx.dll` (loaded by the game). A runtime with only the windows shim
+    /// must still fail clearly, not silently "succeed" half-prepared.
+    @Test func prepareThrowsWhenUnixShimMissing() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        _ = try await installFakeRuntime(store: store, id: "rt")
+        let lib = await store.runtimeDirectory(id: "rt")
+            .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine/lib")
+        let winDir = lib.appendingPathComponent("wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: winDir, withIntermediateDirectories: true)
+        try Data("dll".utf8).write(to: winDir.appendingPathComponent("nvngx.dll"))
+        // Windows shim present, but no x86_64-unix/nvngx.so.
+
+        let prefix = dir.appendingPathComponent("prefix")
+        await #expect(throws: RuntimeError.self) {
+            try await MetalFXEnabler(store: store).prepare(runtimeID: "rt", prefix: prefix)
+        }
+    }
 }
