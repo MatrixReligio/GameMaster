@@ -382,6 +382,64 @@ struct AppStateRunningStateTests {
         runner.release()
         await launchTask.value
     }
+
+    /// And a bottle CREATE in flight blocks the import too: the new bottle's
+    /// wineboot loads from the shared runtime's wine/lib, yet the bottle isn't
+    /// in `bottles` until its boot succeeds — so the import must gate on
+    /// `creatingBottle`, not just running programs.
+    @Test func refusesGPTKImportWhileACreateIsInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = GatedBootRunner()
+        let mounter = FakeMounter(mountPoint: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: mounter,
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+
+        // createBottle sets creatingBottle = true then blocks at wineboot.
+        let createTask = Task { await state.createBottle(name: "B") }
+        while !state.creatingBottle {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        state.lastErrorMessage = nil
+        await state.importGPTK(dmg: dir.appendingPathComponent("eval.dmg"))
+        #expect(state.lastErrorMessage != nil)
+        #expect(mounter.mounted.isEmpty) // import refused, never mounted
+
+        runner.release()
+        await createTask.value
+    }
+}
+
+/// Runner that blocks `wineboot --init` until released, so a test can hold a
+/// bottle creation in flight; every other wine command returns immediately.
+private final class GatedBootRunner: ProcessRunning, @unchecked Sendable {
+    private let released = Mutex<Bool>(false)
+    func release() {
+        released.withLock { $0 = true }
+    }
+
+    func run(
+        executable _: URL,
+        arguments: [String],
+        environment _: [String: String]?,
+        currentDirectory _: URL?,
+        outputLine _: (@Sendable (String) -> Void)?
+    ) async throws -> ProcessResult {
+        if arguments.first == "wineboot" {
+            while !released.withLock({ $0 }) {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+        return ProcessResult(exitCode: 0)
+    }
 }
 
 /// A DMG mounter that blocks on mount until the task is cancelled, so a test can

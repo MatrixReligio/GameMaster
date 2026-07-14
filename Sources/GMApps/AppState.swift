@@ -285,7 +285,10 @@ public final class AppState {
         } else {
             false
         }
-        if runtimeMaintenanceInProgress || isInstalling || runtimeInstalling {
+        // `creatingBottle` matters too: a new bottle's wineboot loads libraries
+        // from the shared runtime's wine/lib, and the bottle isn't in `bottles`
+        // (so anyBottleActive can't see it) until after its boot succeeds.
+        if runtimeMaintenanceInProgress || isInstalling || runtimeInstalling || creatingBottle {
             lastErrorMessage = String(
                 localized: "An install is in progress. Wait for it to finish before updating the graphics runtime."
             )
