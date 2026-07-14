@@ -7,29 +7,31 @@ import GMTestSupport
 import Testing
 @testable import GMLaunch
 
-@Suite("WineLauncher maintenance gate")
-struct WineLauncherMaintenanceTests {
-    private func launcher(runner: FakeRunner, env: Env, underMaintenance: Bool) -> WineLauncher {
+@Suite("WineLauncher runtime lease")
+struct WineLauncherLeaseTests {
+    private func launcher(runner: FakeRunner, env: Env, lease: RuntimeLease) -> WineLauncher {
         WineLauncher(
             runtimeStore: env.runtimeStore,
             bottleStore: env.bottleStore,
             runner: runner,
             logsRoot: env.root.appendingPathComponent("logs"),
             defaultRuntimeID: "rt",
-            isUnderMaintenance: { underMaintenance }
+            lease: lease
         )
     }
 
-    /// The single arbiter: while the gate reports maintenance, EVERY wine entry
-    /// point is refused at the `context(for:)` choke point — launch, run,
-    /// stop, control commands, taskkill, retina registry, and boot — and no
-    /// wine process is ever spawned. A GPTK import replacing the shared runtime
-    /// must never race a live wine process, whatever the entry point.
-    @Test func refusesEveryWineCallWhileMaintenanceHeld() async throws {
+    /// While an import holds the writer, EVERY method that starts a wine process
+    /// fails to take a reader and is refused — launch, run, stop, control
+    /// commands, taskkill, retina registry, and boot — and no wine process is
+    /// ever spawned. This is also the completeness net: a method that forgot to
+    /// take a reader would run the runner here and fail the final assertion.
+    @Test func refusesEveryWineCallWhileWriterHeld() async throws {
         let env = try await makeEnv()
         defer { try? FileManager.default.removeItem(at: env.root) }
         let runner = FakeRunner()
-        let launcher = launcher(runner: runner, env: env, underMaintenance: true)
+        let lease = RuntimeLease()
+        #expect(lease.acquireWriter()) // import holds the runtime
+        let launcher = launcher(runner: runner, env: env, lease: lease)
         let program = Program(
             name: "Steam",
             windowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe",
@@ -62,14 +64,18 @@ struct WineLauncherMaintenanceTests {
         #expect(runner.invocations.isEmpty)
     }
 
-    /// The gate is inert when it reports no maintenance: wine runs normally.
-    @Test func allowsWineCallsWhenNotUnderMaintenance() async throws {
+    /// With no writer held, wine runs normally and each op takes then drops a
+    /// reader (so a later import could proceed).
+    @Test func allowsWineCallsWhenNoWriterHeld() async throws {
         let env = try await makeEnv()
         defer { try? FileManager.default.removeItem(at: env.root) }
         let runner = FakeRunner()
-        let launcher = launcher(runner: runner, env: env, underMaintenance: false)
+        let lease = RuntimeLease()
+        let launcher = launcher(runner: runner, env: env, lease: lease)
         try await launcher.stopAll(in: env.bottle)
         #expect(runner.invocations.count == 1)
         #expect(runner.invocations[0].arguments == ["-k"])
+        // The reader was released, so a writer can now be granted.
+        #expect(lease.acquireWriter())
     }
 }

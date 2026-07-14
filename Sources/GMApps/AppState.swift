@@ -55,19 +55,13 @@ public final class AppState {
     /// seconds (more right after a runtime download, when Rosetta first
     /// translates the wine binaries) — the UI shows progress off this flag.
     public internal(set) var creatingBottle = false
-    /// Held for the whole duration of a shared-runtime maintenance op (GPTK
-    /// import). It's the writer lease: while held, launches / bottle creation /
-    /// installs / runtime downloads refuse to start (they'd use a half-replaced
-    /// runtime); the maintenance op, in turn, refuses to start while any of
-    /// those are already in flight. Acquired synchronously before the op's first
-    /// await so there's no TOCTOU window on @MainActor.
-    ///
-    /// Backed by `maintenanceGate` so it's a SINGLE source of truth: the
-    /// off-actor `WineLauncher` reads the same gate at its `context(for:)`
-    /// choke point and refuses every wine process while it's held. One flag,
-    /// read on both sides — they can't drift.
+    /// True while a shared-runtime maintenance op (GPTK import) holds the WRITER
+    /// of `runtimeLease`. Surfaced for the UI and the entry guards
+    /// (`blockedByRuntimeMaintenance`). The low-level safety invariant — no
+    /// runtime replace overlapping a live Wine process — is enforced by the
+    /// lease itself (readers vs. writer in `WineLauncher`), not by this flag.
     public var runtimeMaintenanceInProgress: Bool {
-        maintenanceGate.isActive
+        runtimeLease.isWriterHeld
     }
 
     public var lastErrorMessage: String?
@@ -82,9 +76,10 @@ public final class AppState {
     let installer: RuntimeInstaller
     let importer: GPTKImporter
     let launcher: WineLauncher
-    /// Raised around a GPTK import; read by both this actor (the writer lease
-    /// above) and the off-actor `WineLauncher`. See `runtimeMaintenanceInProgress`.
-    let maintenanceGate: MaintenanceGate
+    /// Single-writer/multi-reader lease over the shared runtime, shared with the
+    /// off-actor `WineLauncher`: wine ops take readers, a GPTK import takes the
+    /// writer. See `runtimeMaintenanceInProgress`.
+    let runtimeLease: RuntimeLease
     let appInstaller: AppInstaller
     let programLibrary: ProgramLibrary
     let activityProbe: any PrefixActivityProbing
@@ -167,18 +162,17 @@ public final class AppState {
             runner: toolRunner,
             verifier: CodesignVerifier(runner: toolRunner)
         )
-        let gate = MaintenanceGate()
-        maintenanceGate = gate
+        let lease = RuntimeLease()
+        runtimeLease = lease
         launcher = WineLauncher(
             runtimeStore: runtimeStore,
             bottleStore: bottleStore,
             runner: runner,
             logsRoot: logsRoot,
             defaultRuntimeID: manifest.defaultRuntimeID,
-            // Single arbiter: the launcher refuses every wine process while the
-            // maintenance lease (a GPTK import) is held. Capture the gate, not
-            // self, so it's readable off the main actor.
-            isUnderMaintenance: { gate.isActive }
+            // Shared lease: every wine op takes a reader, the import takes the
+            // writer. Off-actor safe (RuntimeLease is lock-protected).
+            lease: lease
         )
         appInstaller = AppInstaller(downloader: downloader, launcher: launcher, bottleStore: bottleStore)
         programLibrary = ProgramLibrary(bottleStore: bottleStore)
@@ -310,12 +304,18 @@ public final class AppState {
             )
             return
         }
-        // Acquire the writer lease synchronously — before the awaited activity
-        // probe below — so any launch/create/install starting during it is
-        // refused (they read this flag), closing the TOCTOU. Raising the gate
-        // also makes the off-actor WineLauncher refuse every wine process.
-        maintenanceGate.setActive(true)
-        defer { maintenanceGate.setActive(false) }
+        // Take the WRITER synchronously — before the awaited probe below — so no
+        // wine op can start once we hold it. acquireWriter also fails atomically
+        // if any wine op currently holds a READER (e.g. a retina regedit, which
+        // sets no UI flag) — the check-then-await case the per-entry synchronous
+        // flags can't cover. This is the low-level safety invariant.
+        guard runtimeLease.acquireWriter() else {
+            lastErrorMessage = String(
+                localized: "A program is running. Stop it before updating the graphics runtime."
+            )
+            return
+        }
+        defer { runtimeLease.releaseWriter() }
         if await anyBottleActive() {
             lastErrorMessage = String(
                 localized: "A program is running. Stop it before updating the graphics runtime."
@@ -455,21 +455,6 @@ public final class AppState {
     /// bottle's id so a sibling bottle's detail view can't show it. nil when
     /// nothing is installing.
     public internal(set) var activeInstall: ActiveInstall?
-
-    /// Install/migration progress for `bottle`, or nil when a *different*
-    /// bottle (or none) is installing — so switching to another bottle's view
-    /// no longer shows a sibling's progress bar.
-    public func installProgress(for bottle: Bottle) -> (phase: InstallPhase, fraction: Double)? {
-        guard let activeInstall, activeInstall.bottleID == bottle.id else { return nil }
-        return (activeInstall.phase, activeInstall.fraction)
-    }
-
-    /// True while any bottle has an install/migration in flight. Installs mutate
-    /// a Wine prefix and share one progress/token slot, so only one runs at a
-    /// time — the UI disables starting a second from another bottle's view.
-    public var isInstalling: Bool {
-        activeInstall != nil
-    }
 
     public func installCatalogApp(id: String, into bottle: Bottle) async {
         guard let entry = catalog.entries.first(where: { $0.id == id }) else {

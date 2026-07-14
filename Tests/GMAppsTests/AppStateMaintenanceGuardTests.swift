@@ -86,9 +86,9 @@ struct AppStateMaintenanceGuardTests {
         let bottle = ready.bottle
         defer { try? FileManager.default.removeItem(at: ready.dir) }
 
-        state.maintenanceGate.setActive(true)
+        #expect(state.runtimeLease.acquireWriter())
         await state.deleteBottle(bottle)
-        state.maintenanceGate.setActive(false)
+        state.runtimeLease.releaseWriter()
 
         #expect(state.lastErrorMessage != nil)
         #expect(state.bottles.contains { $0.id == bottle.id }) // NOT deleted
@@ -107,9 +107,9 @@ struct AppStateMaintenanceGuardTests {
         let bottle = ready.bottle
         defer { try? FileManager.default.removeItem(at: ready.dir) }
 
-        state.maintenanceGate.setActive(true)
+        #expect(state.runtimeLease.acquireWriter())
         await state.updateBottle(id: bottle.id, name: "Renamed", settings: bottle.settings)
-        state.maintenanceGate.setActive(false)
+        state.runtimeLease.releaseWriter()
 
         #expect(state.lastErrorMessage != nil)
         let store = BottleStore(root: ready.dir.appendingPathComponent("approot"))
@@ -129,9 +129,9 @@ struct AppStateMaintenanceGuardTests {
         let exe = ready.dir.appendingPathComponent("Dropped.exe")
         try Data("MZ".utf8).write(to: exe)
 
-        state.maintenanceGate.setActive(true)
+        #expect(state.runtimeLease.acquireWriter())
         await state.addProgramAndLaunch(exe: exe, in: bottle)
-        state.maintenanceGate.setActive(false)
+        state.runtimeLease.releaseWriter()
 
         #expect(state.lastErrorMessage != nil)
         let store = BottleStore(root: ready.dir.appendingPathComponent("approot"))
@@ -180,6 +180,54 @@ struct AppStateMaintenanceGuardTests {
         runner.release()
         await deleteTask.value
     }
+
+    /// The point of the reader/writer lease: updateBottle needs NO synchronous
+    /// marker of its own. Its retina regedit takes a reader for the whole call,
+    /// so while that regedit is in flight a GPTK import can't take the writer —
+    /// the check-then-await window inside `context()` is closed structurally,
+    /// not by any AppState UI-state set.
+    @Test func refusesGPTKImportWhileAnUpdateBottleRegeditIsInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = GatedRegeditRunner()
+        let mounter = FakeMounter(mountPoint: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: mounter,
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        #expect(bottle.settings.retinaMode) // default on
+        runner.arm() // only gate the retina regedit, not bottle creation's
+
+        // Toggle retina → updateBottle runs applyRetinaRegistry → regedit blocks,
+        // holding a runtime reader for the duration.
+        var settings = bottle.settings
+        settings.retinaMode = false
+        let updateTask = Task { await state.updateBottle(id: bottle.id, name: bottle.name, settings: settings) }
+        var inFlight = false
+        for _ in 0 ..< 200 where !inFlight {
+            if runner.reached {
+                inFlight = true
+            } else {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+        #expect(inFlight)
+        state.lastErrorMessage = nil
+        await state.importGPTK(dmg: dir.appendingPathComponent("eval.dmg"))
+        #expect(state.lastErrorMessage != nil)
+        #expect(mounter.mounted.isEmpty) // import refused, never mounted
+
+        runner.release()
+        await updateTask.value
+    }
 }
 
 /// Runner that blocks `wineserver -k` until released, so a test can hold a
@@ -204,6 +252,42 @@ private final class GatedStopRunner: ProcessRunning, @unchecked Sendable {
     ) async throws -> ProcessResult {
         if arguments.first == "-k" {
             reachedStop.withLock { $0 = true }
+            while !released.withLock({ $0 }) {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+        return ProcessResult(exitCode: 0)
+    }
+}
+
+/// Runner that blocks `regedit` until released — but only once `arm()` is called,
+/// so a test can let bottle creation's own regedit through, then hold a LATER
+/// retina regedit in flight. `reached` flips once that gated regedit blocks.
+private final class GatedRegeditRunner: ProcessRunning, @unchecked Sendable {
+    private let released = Mutex<Bool>(false)
+    private let armed = Mutex<Bool>(false)
+    private let reachedRegedit = Mutex<Bool>(false)
+    var reached: Bool {
+        reachedRegedit.withLock { $0 }
+    }
+
+    func arm() {
+        armed.withLock { $0 = true }
+    }
+
+    func release() {
+        released.withLock { $0 = true }
+    }
+
+    func run(
+        executable _: URL,
+        arguments: [String],
+        environment _: [String: String]?,
+        currentDirectory _: URL?,
+        outputLine _: (@Sendable (String) -> Void)?
+    ) async throws -> ProcessResult {
+        if arguments.first == "regedit", armed.withLock({ $0 }) {
+            reachedRegedit.withLock { $0 = true }
             while !released.withLock({ $0 }) {
                 try await Task.sleep(nanoseconds: 5_000_000)
             }

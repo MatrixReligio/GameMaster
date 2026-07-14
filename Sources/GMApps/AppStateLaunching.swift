@@ -344,4 +344,19 @@ public extension AppState {
     var defaultRuntimeID: String {
         manifest.defaultRuntimeID
     }
+
+    /// Install/migration progress for `bottle`, or nil when a *different*
+    /// bottle (or none) is installing — so switching to another bottle's view
+    /// no longer shows a sibling's progress bar.
+    func installProgress(for bottle: Bottle) -> (phase: InstallPhase, fraction: Double)? {
+        guard let activeInstall, activeInstall.bottleID == bottle.id else { return nil }
+        return (activeInstall.phase, activeInstall.fraction)
+    }
+
+    /// True while any bottle has an install/migration in flight. Installs mutate
+    /// a Wine prefix and share one progress/token slot, so only one runs at a
+    /// time — the UI disables starting a second from another bottle's view.
+    var isInstalling: Bool {
+        activeInstall != nil
+    }
 }

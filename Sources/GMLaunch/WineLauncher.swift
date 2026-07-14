@@ -29,11 +29,13 @@ public struct WineLauncher: Sendable {
     private let runner: any ProcessRunning
     private let logsRoot: URL
     private let defaultRuntimeID: String
-    /// Read at the single `context(for:)` choke point (and before MetalFX
-    /// prep): while it returns true a GPTK import is replacing the shared
-    /// runtime, so every wine process is refused. Defaults to always-false so
-    /// callers that never import (and tests) need not supply it.
-    private let isUnderMaintenance: @Sendable () -> Bool
+    /// Single-writer/multi-reader lease over the shared runtime. Every method
+    /// that starts a Wine process takes a reader for its whole duration; a GPTK
+    /// import takes the writer. A reader can't be granted while the writer is
+    /// held, and vice versa — so a runtime replace can never overlap a live Wine
+    /// process, with no check-then-await window. Defaults to a private lease so
+    /// callers that never import (and tests) need not supply one.
+    private let lease: RuntimeLease
 
     public init(
         runtimeStore: RuntimeStore,
@@ -41,18 +43,20 @@ public struct WineLauncher: Sendable {
         runner: any ProcessRunning,
         logsRoot: URL,
         defaultRuntimeID: String,
-        isUnderMaintenance: @escaping @Sendable () -> Bool = { false }
+        lease: RuntimeLease = RuntimeLease()
     ) {
         self.runtimeStore = runtimeStore
         self.bottleStore = bottleStore
         self.runner = runner
         self.logsRoot = logsRoot
         self.defaultRuntimeID = defaultRuntimeID
-        self.isUnderMaintenance = isUnderMaintenance
+        self.lease = lease
     }
 
     /// Boots a fresh prefix (`wineboot --init`) and applies registry tweaks.
     public func initializeBottle(_ bottle: Bottle) async throws {
+        guard lease.acquireReader() else { throw LaunchError.runtimeUnderMaintenance }
+        defer { lease.releaseReader() }
         let context = try await context(for: bottle)
 
         // Disable wine's automatic mono/.NET and gecko/HTML installers for the
@@ -83,6 +87,8 @@ public struct WineLauncher: Sendable {
     /// Retina lives in the Wine registry, so toggling it in Bottle Settings
     /// must call this — saving the JSON alone changes nothing at runtime.
     public func applyRetinaRegistry(in bottle: Bottle) async throws {
+        guard lease.acquireReader() else { throw LaunchError.runtimeUnderMaintenance }
+        defer { lease.releaseReader() }
         try await applyRetinaRegistry(in: bottle, context: context(for: bottle))
     }
 
@@ -109,6 +115,8 @@ public struct WineLauncher: Sendable {
     /// the caller's running-state tracking then reflects reality.
     @discardableResult
     public func launch(_ program: Program, in bottle: Bottle) async throws -> ProcessResult {
+        guard lease.acquireReader() else { throw LaunchError.runtimeUnderMaintenance }
+        defer { lease.releaseReader() }
         try await prepareMetalFXIfNeeded(for: bottle)
         let context = try await context(for: bottle)
         let exe = WindowsPath.toUnix(program.windowsPath, prefix: context.prefix)
@@ -141,6 +149,8 @@ public struct WineLauncher: Sendable {
         in bottle: Bottle,
         wait: Bool = false
     ) async throws -> ProcessResult {
+        guard lease.acquireReader() else { throw LaunchError.runtimeUnderMaintenance }
+        defer { lease.releaseReader() }
         try await prepareMetalFXIfNeeded(for: bottle)
         let context = try await context(for: bottle)
         return try await start(
@@ -164,6 +174,8 @@ public struct WineLauncher: Sendable {
         arguments: [String],
         in bottle: Bottle
     ) async throws -> ProcessResult {
+        guard lease.acquireReader() else { throw LaunchError.runtimeUnderMaintenance }
+        defer { lease.releaseReader() }
         let context = try await context(for: bottle)
         return try await start(
             exe: exe,
@@ -184,6 +196,8 @@ public struct WineLauncher: Sendable {
     /// process was already gone (the common case) and the card resolves via
     /// the launch call returning; a stuck program still has Force Stop All.
     public func taskkill(imageName: String, in bottle: Bottle) async throws {
+        guard lease.acquireReader() else { throw LaunchError.runtimeUnderMaintenance }
+        defer { lease.releaseReader() }
         let context = try await context(for: bottle)
         _ = try await runner.run(
             executable: context.wineBinary,
@@ -196,6 +210,8 @@ public struct WineLauncher: Sendable {
 
     /// Kills every wine process of the bottle (`wineserver -k`).
     public func stopAll(in bottle: Bottle) async throws {
+        guard lease.acquireReader() else { throw LaunchError.runtimeUnderMaintenance }
+        defer { lease.releaseReader() }
         let context = try await context(for: bottle)
         let wineserver = context.wineBinary.deletingLastPathComponent()
             .appendingPathComponent("wineserver")
@@ -254,14 +270,6 @@ public struct WineLauncher: Sendable {
     }
 
     private func context(for bottle: Bottle) async throws -> Context {
-        // The single arbiter. EVERY method that starts a wine process resolves
-        // its context here first, so refusing when the shared runtime is under
-        // maintenance (a GPTK import) closes off all of them at once — launch,
-        // run, stop, control commands, taskkill, retina registry, boot — and
-        // any entry point added later, with no new scattered guard to forget.
-        if isUnderMaintenance() {
-            throw LaunchError.runtimeUnderMaintenance
-        }
         let runtimeID = bottle.runtimeID ?? defaultRuntimeID
         guard let descriptor = try await runtimeStore.descriptor(id: runtimeID) else {
             throw LaunchError.runtimeMissing(id: runtimeID)
@@ -286,13 +294,8 @@ public struct WineLauncher: Sendable {
     /// non-destructive and idempotent, so a failure surfaces at launch instead
     /// of running with the env claiming MetalFX while the shim never landed.
     private func prepareMetalFXIfNeeded(for bottle: Bottle) async throws {
-        // launch/run prep the runtime BEFORE resolving context(), so this file
-        // write into the shared runtime must also stand down during a GPTK
-        // import — otherwise the backstop would miss the one path that touches
-        // the runtime ahead of the context() choke point.
-        if isUnderMaintenance() {
-            throw LaunchError.runtimeUnderMaintenance
-        }
+        // Callers hold the runtime reader for the whole operation, so this write
+        // into the shared runtime is already fenced against a GPTK import.
         guard bottle.settings.metalFX else { return }
         let runtimeID = bottle.runtimeID ?? defaultRuntimeID
         guard let descriptor = try await runtimeStore.descriptor(id: runtimeID),
