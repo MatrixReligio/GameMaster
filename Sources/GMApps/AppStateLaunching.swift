@@ -131,7 +131,9 @@ public extension AppState {
             }), let arguments = entry.shutdownArguments {
                 let prefix = await bottleStore.prefixDirectory(of: bottle)
                 let exe = WindowsPath.toUnix(program.windowsPath, prefix: prefix)
-                _ = try await launcher.run(exe: exe, arguments: arguments, in: bottle, wait: false)
+                // A control command, not a launch: never run MetalFX prep, so a
+                // broken MetalFX file can't stop us from stopping the program.
+                _ = try await launcher.runControlCommand(exe: exe, arguments: arguments, in: bottle)
             } else {
                 let imageName = program.windowsPath
                     .split(separator: "\\").last.map(String.init) ?? program.windowsPath

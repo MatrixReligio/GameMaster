@@ -153,6 +153,34 @@ struct AppStateTests {
         #expect(taskkill.arguments == ["taskkill", "/IM", "g.exe"])
     }
 
+    /// Stopping Steam (its `-shutdown` control command) must succeed even when
+    /// the bottle has MetalFX on and the MetalFX prep would fail — stopping a
+    /// program can't depend on launch-time graphics preparation. (Regression:
+    /// the shutdown went through `run`, which prepped and could throw first.)
+    @Test func stopSteamSucceedsDespiteBrokenMetalFXPrep() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = FakeRunner()
+        let state = makeState(dir: dir, fixture: fixture, entry: entry, runner: runner)
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        var bottle = try #require(state.bottles.first)
+        bottle.settings.metalFX = true // GPTK + MetalFX → a launch would run prep
+
+        // Break the MetalFX prep: a file where the prefix's system32 must be a dir.
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        let windows = prefix.appendingPathComponent("drive_c/windows")
+        try FileManager.default.createDirectory(at: windows, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: windows.appendingPathComponent("system32"))
+
+        let steam = Program(name: "Steam", windowsPath: "C:\\Program Files (x86)\\Steam\\steam.exe")
+        state.lastErrorMessage = nil
+        await state.stopProgram(steam, in: bottle)
+        #expect(state.lastErrorMessage == nil)
+        #expect(runner.invocations.contains { $0.arguments.contains("-shutdown") })
+    }
+
     @Test func onboardingNeededUntilRuntimeInstalled() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

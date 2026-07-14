@@ -143,6 +143,28 @@ public struct WineLauncher: Sendable {
         )
     }
 
+    /// Sends a control command to a running program (e.g. Steam's `-shutdown`,
+    /// routed through the running instance to save state). Unlike `run`, this
+    /// NEVER performs MetalFX file prep: stopping a program must not depend on —
+    /// and fail because of — launch-time graphics preparation. Always
+    /// fire-and-forget (`wait: false`); the program exits on its own.
+    @discardableResult
+    public func runControlCommand(
+        exe: URL,
+        arguments: [String],
+        in bottle: Bottle
+    ) async throws -> ProcessResult {
+        let context = try await context(for: bottle)
+        return try await start(
+            exe: exe,
+            arguments: arguments,
+            extraEnvironment: [:],
+            logName: exe.deletingPathExtension().lastPathComponent,
+            context: context,
+            wait: false
+        )
+    }
+
     /// Asks a running Windows program to close gracefully: `taskkill` without
     /// `/F` sends WM_CLOSE — the same as clicking the window's close button —
     /// so the program can save state or show its own confirmation dialog.

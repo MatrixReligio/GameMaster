@@ -452,6 +452,41 @@ struct MetalFXLaunchTests {
             _ = try await launcher.launch(Program(name: "G", windowsPath: "C:\\g.exe"), in: bottle)
         }
     }
+
+    /// A control command routed through the running instance (Steam's
+    /// `-shutdown`) must also never run MetalFX prep — it goes through the
+    /// launcher but is a stop, not a launch, so a broken MetalFX file can't
+    /// block it. (`run`, used for launching one-off programs and installers,
+    /// still preps.)
+    @Test func runControlCommandIgnoresBrokenMetalFXPrep() async throws {
+        let env = try await makeEnv()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        let winDir = env.root.appendingPathComponent("runtimes/rt/gptk/wine/lib/wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: winDir, withIntermediateDirectories: true)
+        try Data("dll".utf8).write(to: winDir.appendingPathComponent("nvngx-on-metalfx.dll"))
+
+        let prefix = await env.bottleStore.prefixDirectory(of: env.bottle)
+        let windows = prefix.appendingPathComponent("drive_c/windows")
+        try FileManager.default.createDirectory(at: windows, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: windows.appendingPathComponent("system32"))
+
+        var bottle = env.bottle
+        bottle.settings.metalFX = true
+        let launcher = WineLauncher(
+            runtimeStore: env.runtimeStore,
+            bottleStore: env.bottleStore,
+            runner: FakeRunner(),
+            logsRoot: env.root.appendingPathComponent("logs"),
+            defaultRuntimeID: "rt"
+        )
+        let exe = prefix.appendingPathComponent("drive_c/steam.exe")
+        // The control command must succeed despite broken MetalFX prep…
+        _ = try await launcher.runControlCommand(exe: exe, arguments: ["-shutdown"], in: bottle)
+        // …while `run` (a launch path) still surfaces the prep failure.
+        await #expect(throws: (any Error).self) {
+            _ = try await launcher.run(exe: exe, arguments: [], in: bottle)
+        }
+    }
 }
 
 @Suite("Launch argument sanitizing")
