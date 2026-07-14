@@ -88,6 +88,34 @@ struct LogReaderTests {
         try Data("content".utf8).write(to: url)
         #expect(LogReader.tail(of: url, maxBytes: 0).isEmpty)
     }
+
+    @Test func tailDataCapsALargeFileToMaxBytes() throws {
+        let url = try tempDir().appendingPathComponent("big.bin")
+        try Data(repeating: 65, count: 10000).write(to: url)
+        #expect(LogReader.tailData(of: url, maxBytes: 4096).count == 4096)
+    }
+
+    /// A log the game is still writing can grow between measuring its size and
+    /// reading it; the result must never exceed the cap. `read(upToCount:)`
+    /// guarantees this (the old `readToEnd()` did not).
+    @Test func tailDataStaysCappedUnderConcurrentAppend() async throws {
+        let url = try tempDir().appendingPathComponent("growing.log")
+        let maxBytes = 1024
+        try Data(repeating: 65, count: maxBytes * 4).write(to: url) // already over the cap
+        // Open the writer inside the task so no non-Sendable handle is captured.
+        let appender = Task.detached {
+            guard let writer = try? FileHandle(forWritingTo: url) else { return }
+            try? writer.seekToEnd()
+            for _ in 0 ..< 400 {
+                try? writer.write(contentsOf: Data(repeating: 66, count: 8192))
+            }
+            try? writer.close()
+        }
+        for _ in 0 ..< 100 {
+            #expect(LogReader.tailData(of: url, maxBytes: maxBytes).count <= maxBytes)
+        }
+        await appender.value
+    }
 }
 
 @Suite("WindowsPath")
