@@ -76,6 +76,18 @@ struct LogReaderTests {
             .appendingPathComponent("gm-nope-\(UUID().uuidString).log")
         #expect(LogReader.tail(of: missing).isEmpty)
     }
+
+    @Test func returnsEmptyForAnEmptyFile() throws {
+        let url = try tempDir().appendingPathComponent("empty.txt")
+        try Data().write(to: url)
+        #expect(LogReader.tail(of: url).isEmpty)
+    }
+
+    @Test func returnsEmptyForZeroMaxBytes() throws {
+        let url = try tempDir().appendingPathComponent("some.txt")
+        try Data("content".utf8).write(to: url)
+        #expect(LogReader.tail(of: url, maxBytes: 0).isEmpty)
+    }
 }
 
 @Suite("WindowsPath")
