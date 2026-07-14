@@ -105,7 +105,7 @@ struct LogReaderTests {
         // Open the writer inside the task so no non-Sendable handle is captured.
         let appender = Task.detached {
             guard let writer = try? FileHandle(forWritingTo: url) else { return }
-            try? writer.seekToEnd()
+            _ = try? writer.seekToEnd()
             for _ in 0 ..< 400 {
                 try? writer.write(contentsOf: Data(repeating: 66, count: 8192))
             }
