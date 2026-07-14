@@ -35,6 +35,12 @@ T = {
          "「%@」は完全に削除されます。この操作は取り消せません。", "“%@”이(가) 영구히 삭제됩니다. 되돌릴 수 없습니다."),
     "Runtime not installed": ("运行时未安装", "執行環境未安裝", "ランタイム未インストール", "런타임이 설치되지 않음"),
     "Installing runtime…": ("正在安装运行时…", "正在安裝執行環境…", "ランタイムをインストール中…", "런타임 설치 중…"),
+    "This runtime doesn’t include the MetalFX libraries, so MetalFX can’t be enabled. "
+    "Turn MetalFX off for this bottle, or import Apple’s D3DMetal evaluation environment.":
+        ("此运行时不包含 MetalFX 库，无法启用 MetalFX。请为该游戏瓶关闭 MetalFX，或导入 Apple 的 D3DMetal 评估环境。",
+         "此執行環境不包含 MetalFX 函式庫，無法啟用 MetalFX。請為該遊戲瓶關閉 MetalFX，或匯入 Apple 的 D3DMetal 評估環境。",
+         "このランタイムには MetalFX ライブラリが含まれていないため、MetalFX を有効にできません。このボトルの MetalFX をオフにするか、Apple の D3DMetal 評価環境をインポートしてください。",
+         "이 런타임에는 MetalFX 라이브러리가 없어 MetalFX를 활성화할 수 없습니다. 이 보틀의 MetalFX를 끄거나 Apple의 D3DMetal 평가 환경을 가져오세요."),
     "Another install is in progress. Wait for it to finish, then try again.":
         ("另一个安装正在进行中。请等它完成后再试。", "另一個安裝正在進行中。請等它完成後再試。",
          "別のインストールが進行中です。完了してからもう一度お試しください。", "다른 설치가 진행 중입니다. 완료된 후 다시 시도하세요."),

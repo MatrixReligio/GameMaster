@@ -3501,6 +3501,34 @@
         }
       }
     },
+    "This runtime doesn’t include the MetalFX libraries, so MetalFX can’t be enabled. Turn MetalFX off for this bottle, or import Apple’s D3DMetal evaluation environment.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このランタイムには MetalFX ライブラリが含まれていないため、MetalFX を有効にできません。このボトルの MetalFX をオフにするか、Apple の D3DMetal 評価環境をインポートしてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 런타임에는 MetalFX 라이브러리가 없어 MetalFX를 활성화할 수 없습니다. 이 보틀의 MetalFX를 끄거나 Apple의 D3DMetal 평가 환경을 가져오세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此运行时不包含 MetalFX 库，无法启用 MetalFX。请为该游戏瓶关闭 MetalFX，或导入 Apple 的 D3DMetal 评估环境。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此執行環境不包含 MetalFX 函式庫，無法啟用 MetalFX。請為該遊戲瓶關閉 MetalFX，或匯入 Apple 的 D3DMetal 評估環境。"
+          }
+        }
+      }
+    },
     "Uncapped": {
       "localizations": {
         "ja": {

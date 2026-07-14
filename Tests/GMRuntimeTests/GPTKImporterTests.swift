@@ -552,4 +552,25 @@ struct MetalFXEnablerTests {
         #expect(FileManager.default.fileExists(atPath: unixDir.appendingPathComponent("nvngx-on-metalfx.so").path))
         #expect(FileManager.default.fileExists(atPath: winDir.appendingPathComponent("nvngx-on-metalfx.dll").path))
     }
+
+    /// If MetalFX is requested but the runtime provides no nvngx shim at all
+    /// (neither the activated `nvngx.dll` nor the `-on-metalfx` source to
+    /// activate), prep must fail clearly rather than silently "succeeding" with
+    /// a feature that cannot work.
+    @Test func prepareThrowsWhenMetalFXShimMissing() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = RuntimeStore(root: dir.appendingPathComponent("approot"))
+        _ = try await installFakeRuntime(store: store, id: "rt")
+        let lib = await store.runtimeDirectory(id: "rt")
+            .appendingPathComponent("Game Porting Toolkit.app/Contents/Resources/wine/lib")
+        let winDir = lib.appendingPathComponent("wine/x86_64-windows")
+        try FileManager.default.createDirectory(at: winDir, withIntermediateDirectories: true)
+        // Deliberately no nvngx.dll and no nvngx-on-metalfx.dll.
+
+        let prefix = dir.appendingPathComponent("prefix")
+        await #expect(throws: RuntimeError.self) {
+            try await MetalFXEnabler(store: store).prepare(runtimeID: "rt", prefix: prefix)
+        }
+    }
 }

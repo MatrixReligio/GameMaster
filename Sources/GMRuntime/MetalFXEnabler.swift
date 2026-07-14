@@ -41,6 +41,14 @@ public struct MetalFXEnabler: Sendable {
 
         let system32 = prefix.appendingPathComponent("drive_c/windows/system32", isDirectory: true)
         try fm.createDirectory(at: system32, withIntermediateDirectories: true)
+        // nvngx.dll is the MetalFX shim the game loads. If the runtime provides
+        // it neither directly nor via the activation above, MetalFX cannot work
+        // — fail clearly instead of silently "succeeding". nvapi64.dll is
+        // auxiliary and copied best-effort.
+        let nvngxSource = lib.appendingPathComponent("wine/x86_64-windows/nvngx.dll")
+        guard fm.fileExists(atPath: nvngxSource.path) else {
+            throw RuntimeError.metalFXShimMissing
+        }
         for dll in ["nvngx.dll", "nvapi64.dll"] {
             let source = lib.appendingPathComponent("wine/x86_64-windows/\(dll)")
             let target = system32.appendingPathComponent(dll)

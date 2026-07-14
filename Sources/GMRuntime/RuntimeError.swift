@@ -7,6 +7,7 @@ public enum RuntimeError: Error, LocalizedError, Equatable {
     case runtimeNotInstalled(id: String)
     case dmgLayoutUnrecognized
     case dmgSignatureInvalid
+    case metalFXShimMissing
 
     public var errorDescription: String? {
         switch self {
@@ -26,6 +27,10 @@ public enum RuntimeError: Error, LocalizedError, Equatable {
         case .dmgSignatureInvalid:
             String(
                 localized: "The libraries in this disk image are not signed by Apple, so they were not imported. Download the original from developer.apple.com/download and try again."
+            )
+        case .metalFXShimMissing:
+            String(
+                localized: "This runtime doesn’t include the MetalFX libraries, so MetalFX can’t be enabled. Turn MetalFX off for this bottle, or import Apple’s D3DMetal evaluation environment."
             )
             // swiftlint:enable line_length
         }
