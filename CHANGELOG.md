@@ -4,6 +4,30 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.17] — 2026-07-14
+
+A final review pass over 0.3.16, focused on crash-safety of the D3DMetal import
+and closing the last per-bottle collision window.
+
+### Fixed
+- **Re-importing the same D3DMetal version can no longer brick a runtime.** If a
+  crash interrupted a repair re-import at the wrong instant, the runtime's
+  graphics library could be left missing and never restored. Startup recovery
+  now restores it whenever it's absent, not only when the recorded version
+  differs.
+- **An interrupted import recovers even if the first repair attempt fails.**
+  Recovery no longer discards its backup and marker before the restore actually
+  succeeds, so a failed restore is retried on the next launch instead of leaving
+  the runtime with no graphics library.
+- **A failed DXMT graphics fixup now surfaces at launch.** Copying DXMT's
+  `winemetal.dll` into a bottle is required for the game to render; if it fails,
+  the launch now reports it instead of starting into a broken game. Stopping a
+  program never runs this step, so a broken graphics file can't block a Stop.
+- **Upgrading an old Steam bottle no longer collides with launching it.** The
+  one-time runtime migration now holds the bottle exclusively while it rewrites
+  the prefix, so a second launch or a dropped installer in the same bottle can't
+  run inside it mid-migration.
+
 ## [0.3.16] — 2026-07-14
 
 Further hardening from a code-review pass over 0.3.15.
