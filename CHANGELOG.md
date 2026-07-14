@@ -4,7 +4,29 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [0.3.11] — 2026-07-14
+## [0.3.12] — 2026-07-14
+
+More fixes from a code-review pass over 0.3.11 — one is a regression 0.3.11
+introduced.
+
+### Fixed
+- **Steam always stops cleanly, even with a damaged MetalFX setup.** 0.3.11's
+  Stop fix missed Steam's own `-shutdown` path, so a broken MetalFX file on a
+  GPTK bottle could still block it. It no longer depends on graphics preparation.
+- **MetalFX says so when it can't be enabled.** If the runtime doesn't include
+  the MetalFX libraries, turning MetalFX on now reports a clear, actionable error
+  at launch instead of silently doing nothing.
+- **Updating the graphics runtime waits for a quiet moment.** Importing Apple's
+  D3DMetal is now refused while a program is running or an install is in progress,
+  so the shared runtime can't be replaced out from under a live game.
+- **A failed bottle setup tells you if leftovers remain.** If the automatic
+  cleanup after a failed setup can't remove the half-created bottle, the app now
+  says so instead of leaving it to reappear silently.
+
+### Performance
+- **Opening a log or showing program cards no longer stutters the UI.** Logs are
+  read off the main thread (and only the recent tail of very large logs), and
+  program-icon extraction from big executables runs in the background.
 
 Follow-up fixes from a code-review pass over 0.3.10 — two of these are
 regressions 0.3.10 introduced.
