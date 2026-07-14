@@ -149,12 +149,23 @@ public struct GPTKImporter: Sendable {
             descriptor.gptk = .installed(version: targetVersion)
             try await store.save(descriptor) // commit point
         } catch {
-            // Roll back to the old lib if we got as far as moving it aside.
+            // Roll back to the old lib if we got as far as moving it aside. Only
+            // clear the marker once the rollback actually succeeds — otherwise
+            // leave the marker + backup so startup recovery finishes the job
+            // rather than deleting the only evidence and stranding the runtime
+            // with no lib.
+            var recovered = true
             if fm.fileExists(atPath: backup.path) {
                 try? fm.removeItem(at: libDir)
-                try? fm.moveItem(at: backup, to: libDir)
+                do {
+                    try fm.moveItem(at: backup, to: libDir)
+                } catch {
+                    recovered = false
+                }
             }
-            try? fm.removeItem(at: marker)
+            if recovered {
+                try? fm.removeItem(at: marker)
+            }
             throw error
         }
         try? fm.removeItem(at: marker)

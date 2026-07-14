@@ -205,6 +205,25 @@ struct GPTKImportRecoveryTests {
         #expect(!FileManager.default.fileExists(atPath: staged.marker.path))
     }
 
+    /// If the rollback move itself fails (disk full, sandbox, a locked file),
+    /// recovery must NOT delete the backup and marker — that would destroy the
+    /// only evidence and strand the runtime with no lib. The remnants survive so
+    /// the next launch retries.
+    @Test func recoveryKeepsEvidenceWhenRestoreFails() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // Interrupted before commit (saved gptk still .none) → must roll back.
+        let staged = try stageInterrupted(in: dir, targetVersion: "3.0", savedGPTK: .none)
+        struct MoveFailure: Error {}
+
+        try RuntimeInstaller.recoverInterruptedGPTKImports(in: staged.runtimesRoot) { _, _ in
+            throw MoveFailure()
+        }
+
+        #expect(FileManager.default.fileExists(atPath: staged.backup.path))
+        #expect(FileManager.default.fileExists(atPath: staged.marker.path))
+    }
+
     /// A committed runtime has no marker, so recovery leaves it untouched.
     @Test func recoverLeavesACommittedRuntimeAlone() throws {
         let dir = try tempDir()

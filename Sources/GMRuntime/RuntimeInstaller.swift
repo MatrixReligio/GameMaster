@@ -185,7 +185,10 @@ public struct RuntimeInstaller: Sendable {
     /// up); otherwise it was interrupted before commit (restore the old lib).
     /// The marker lives at the runtime root, so recovery needs no knowledge of
     /// the nested wine layout. Call once at startup.
-    public static func recoverInterruptedGPTKImports(in runtimesRoot: URL) throws {
+    public static func recoverInterruptedGPTKImports(
+        in runtimesRoot: URL,
+        move: (URL, URL) throws -> Void = { try FileManager.default.moveItem(at: $0, to: $1) }
+    ) throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: runtimesRoot.path) else { return }
         for runtimeName in try fm.contentsOfDirectory(atPath: runtimesRoot.path) {
@@ -208,8 +211,17 @@ public struct RuntimeInstaller: Sendable {
             let mustRestore = !committed || libContents.isEmpty
             if mustRestore, fm.fileExists(atPath: backup.path) {
                 try? fm.removeItem(at: lib)
-                try? fm.moveItem(at: backup, to: lib)
+                do {
+                    try move(backup, lib)
+                } catch {
+                    // Couldn't put the old lib back — KEEP the backup and marker
+                    // so the next launch retries, rather than deleting the only
+                    // evidence and leaving the runtime with no lib at all.
+                    continue
+                }
             }
+            // Restore succeeded, was unnecessary (committed), or there was no
+            // backup to restore: the transaction is settled, clean up the remnants.
             try? fm.removeItem(at: backup)
             try? fm.removeItem(at: markerURL)
         }
