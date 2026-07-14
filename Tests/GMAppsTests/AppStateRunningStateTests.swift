@@ -416,6 +416,48 @@ struct AppStateRunningStateTests {
         runner.release()
         await createTask.value
     }
+
+    /// A "Run Once" (`runExe`) in flight blocks the import too: it launches a
+    /// program via wine but sets no program id, so it marks a synthetic launch
+    /// in `launchingIDs` for the import's check to see.
+    @Test func refusesGPTKImportWhileARunExeIsInFlight() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let runner = GatedLaunchRunner()
+        let mounter = FakeMounter(mountPoint: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: runner,
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: mounter,
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner()
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+
+        // Run Once, gated at wine `start`, so it stays in flight.
+        let runTask = Task { await state.runExe(dir.appendingPathComponent("g.exe"), in: bottle) }
+        // Bounded wait so a regression (marker not set) fails cleanly, not hangs.
+        var inFlight = false
+        for _ in 0 ..< 200 where !inFlight {
+            if state.launchingIDs.isEmpty {
+                try await Task.sleep(nanoseconds: 5_000_000)
+            } else {
+                inFlight = true
+            }
+        }
+        #expect(inFlight)
+        state.lastErrorMessage = nil
+        await state.importGPTK(dmg: dir.appendingPathComponent("eval.dmg"))
+        #expect(state.lastErrorMessage != nil)
+        #expect(mounter.mounted.isEmpty) // import refused, never mounted
+
+        runner.release()
+        await runTask.value
+    }
 }
 
 /// Runner that blocks `wineboot --init` until released, so a test can hold a

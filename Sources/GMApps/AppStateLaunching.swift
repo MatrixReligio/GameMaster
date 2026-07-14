@@ -164,6 +164,13 @@ public extension AppState {
 
     func runExe(_ exe: URL, in bottle: Bottle) async {
         guard !blockedByRuntimeMaintenance() else { return }
+        // Mark a launch in flight (synchronously, before the await) so a GPTK
+        // import — which refuses while launchingIDs is non-empty — can't swap
+        // the shared runtime while wine loads this program. A synthetic id (not
+        // a program's) so it never lights up a program card's "Starting…".
+        let launchMarker = UUID()
+        launchingIDs.insert(launchMarker)
+        defer { launchingIDs.remove(launchMarker) }
         do {
             // Fire-and-forget: the result is wine's `start` helper, which
             // exits nonzero exactly when the program could not be launched.
