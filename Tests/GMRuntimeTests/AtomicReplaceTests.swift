@@ -181,6 +181,30 @@ struct GPTKImportRecoveryTests {
         #expect(!FileManager.default.fileExists(atPath: staged.marker.path))
     }
 
+    /// The brick the last review caught: re-importing the SAME gptk version and
+    /// crashing between moving the old lib aside and moving the new one in — so
+    /// `lib/` is MISSING. The saved version already equals the target, so a
+    /// version-only "committed?" test wrongly concludes it committed, keeps the
+    /// (nonexistent) new lib, and deletes the backup — stranding the runtime
+    /// with no lib at all. Recovery must notice the missing lib and restore from
+    /// the backup regardless of the version match.
+    @Test func recoverRestoresLibWhenNewLibNeverLandedEvenIfVersionMatches() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // A repair re-import of 3.0 over an already-3.0 runtime: versions match.
+        let staged = try stageInterrupted(in: dir, targetVersion: "3.0", savedGPTK: .installed(version: "3.0"))
+        // Crash BETWEEN the two moves: the old lib is aside in the backup and
+        // the new lib never landed — lib/ is gone.
+        try FileManager.default.removeItem(at: staged.lib)
+
+        try RuntimeInstaller.recoverInterruptedGPTKImports(in: staged.runtimesRoot)
+
+        // lib/ is back (restored from the backup) — the runtime isn't bricked.
+        #expect(try String(contentsOf: staged.lib.appendingPathComponent("d3dmetal"), encoding: .utf8) == "old")
+        #expect(!FileManager.default.fileExists(atPath: staged.backup.path))
+        #expect(!FileManager.default.fileExists(atPath: staged.marker.path))
+    }
+
     /// A committed runtime has no marker, so recovery leaves it untouched.
     @Test func recoverLeavesACommittedRuntimeAlone() throws {
         let dir = try tempDir()

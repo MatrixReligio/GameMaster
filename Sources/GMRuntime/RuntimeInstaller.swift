@@ -198,9 +198,15 @@ public struct RuntimeInstaller: Sendable {
             let lib = URL(fileURLWithPath: txn.libPath)
             let backup = URL(fileURLWithPath: txn.backupPath)
             let committed = savedGPTKVersion(in: runtimeDir) == txn.targetVersion
-            // Interrupted before commit → restore the old lib (if we got as far
-            // as moving it aside). Committed → leave the new lib in place.
-            if !committed, fm.fileExists(atPath: backup.path) {
+            // The new lib landed only if `lib/` exists and is non-empty; a crash
+            // between the two moves leaves it missing. Restore the old lib when
+            // the import did NOT commit OR the new lib never landed — a version
+            // match alone can't distinguish a committed import from a SAME-version
+            // repair re-import that crashed mid-swap (which would otherwise keep a
+            // nonexistent lib and delete the backup, bricking the runtime).
+            let libContents = (try? fm.contentsOfDirectory(atPath: lib.path)) ?? []
+            let mustRestore = !committed || libContents.isEmpty
+            if mustRestore, fm.fileExists(atPath: backup.path) {
                 try? fm.removeItem(at: lib)
                 try? fm.moveItem(at: backup, to: lib)
             }
