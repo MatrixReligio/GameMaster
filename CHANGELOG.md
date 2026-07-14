@@ -10,11 +10,10 @@ Hardening and reliability from a code-review pass over 0.3.12, plus a build-
 pipeline security fix.
 
 ### Fixed
-- **Updating the graphics runtime is now fully exclusive.** Importing Apple's
-  D3DMetal is held under a maintenance lease for its whole duration: it won't
-  start while a game is launching, a bottle is being created, or an install is
-  running, and none of those can start while it's underway — so the shared
-  runtime can never be swapped out from under a live process.
+- **Updating the graphics runtime holds a maintenance lease.** Importing Apple's
+  D3DMetal is held under a lease for its whole duration: it won't start while a
+  game is launching, a bottle is being created, or an install is running, and
+  those same actions are refused while it's underway.
 - **MetalFX checks both halves of its shim.** A runtime missing either the unix
   or the Windows MetalFX library now reports a clear error instead of enabling
   MetalFX half-prepared.
