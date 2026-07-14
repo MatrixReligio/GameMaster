@@ -70,20 +70,10 @@ public extension AppState {
         // Refuse a second launch of a program already starting/running. The UI
         // hides Play once it's launching, but a second window shares this same
         // AppState, so two Play clicks could otherwise run the Steam binary
-        // fixups on one prefix concurrently. This insert is synchronous (before
-        // the first await), so the re-entrant call sees it and bails.
+        // fixups on one prefix concurrently. These inserts are synchronous
+        // (before the first await — the migration below), so the re-entrant call
+        // sees them and bails; a function-scope defer clears them on every path.
         guard !runningIDs.contains(program.id), !launchingIDs.contains(program.id) else { return }
-        // Shared lease on the bottle (synchronous, before the first await),
-        // held for the whole session: fails while a delete/install holds the
-        // bottle exclusively, so a launch can't enter a prefix being removed or
-        // installed into; and while held, a delete/install is refused.
-        guard bottleLeases.acquireShared(bottle.id) else {
-            lastErrorMessage = String(
-                localized: "This bottle is busy with another operation. Wait for it to finish, then try again."
-            )
-            return
-        }
-        defer { bottleLeases.releaseShared(bottle.id) }
         runningIDs.insert(program.id)
         // "Launching" spans the click until the program's window appears (or a
         // safety timeout) — Steam's cold start under Wine takes tens of seconds,
@@ -91,18 +81,45 @@ public extension AppState {
         // app layer via `markProgramWindowReady`; this timeout keeps the spinner
         // from spinning forever if detection misses.
         launchingIDs.insert(program.id)
+        defer {
+            runningIDs.remove(program.id)
+            launchingIDs.remove(program.id)
+            closingIDs.remove(program.id)
+        }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(90))
             self?.launchingIDs.remove(program.id)
         }
+        // A Steam bottle created before the dual-runtime split needs a one-time
+        // migration that REWRITES the prefix. Run it FIRST, under the bottle's
+        // EXCLUSIVE lease (taken inside migrateSteamBottleIfNeeded), before the
+        // shared launch below — under the shared lease a concurrent launch/runExe
+        // on this bottle could touch the prefix mid-migration.
+        let target: Bottle
         do {
-            let bottle = try await migrateSteamBottleIfNeeded(program: program, in: bottle)
-            try await ensureWebHelperWrapper(for: program, in: bottle)
+            target = try await migrateSteamBottleIfNeeded(program: program, in: bottle)
+        } catch {
+            report(error)
+            return
+        }
+        // Shared lease on the bottle (synchronous), held for the whole session:
+        // fails while a delete/install/migration holds the bottle exclusively, so
+        // a launch can't enter a prefix being removed or written; and while held,
+        // a delete/install is refused.
+        guard bottleLeases.acquireShared(target.id) else {
+            lastErrorMessage = String(
+                localized: "This bottle is busy with another operation. Wait for it to finish, then try again."
+            )
+            return
+        }
+        defer { bottleLeases.releaseShared(target.id) }
+        do {
+            try await ensureWebHelperWrapper(for: program, in: target)
             // `start /wait` returns only when the program's process fully exits —
             // for Steam that's after its (slow) shutdown, which the "Closing…"
             // state covers.
             let launchedAt = Date()
-            let result = try await launcher.launch(program, in: bottle)
+            let result = try await launcher.launch(program, in: target)
             // Died on startup → tell the user. A nonzero exit after a real
             // session is a game quitting with a junk status code — ignore it.
             if result.exitCode != 0,
@@ -112,9 +129,6 @@ public extension AppState {
         } catch {
             report(error)
         }
-        runningIDs.remove(program.id)
-        launchingIDs.remove(program.id)
-        closingIDs.remove(program.id)
     }
 
     /// Called by the app layer once the program's window is visible, to end the
@@ -140,11 +154,20 @@ public extension AppState {
         guard let entry = catalog.entries.first(where: {
             $0.installedWindowsPath == program.windowsPath && $0.runRuntimeID != nil
         }), let runID = entry.runRuntimeID, bottle.runtimeID != runID else {
-            return bottle
+            return bottle // no migration needed → no lease taken
         }
         // One install/migration at a time (see installCatalogApp): don't race a
         // concurrent install's prefix writes and shared progress slot.
         guard activeInstall == nil else { throw AppInstallError.anotherInstallInProgress }
+        // The migration REWRITES the prefix (download run runtime, bootstrap,
+        // switch runtime) — the same class of mutation as an install, so take the
+        // bottle EXCLUSIVELY, not the shared launch lease. Synchronous acquire
+        // before the first await; a concurrent launch/runExe on this bottle is
+        // refused while it's held, and this refuses if one is already running.
+        guard bottleLeases.acquireExclusive(bottle.id) else {
+            throw AppInstallError.bottleBusy
+        }
+        defer { bottleLeases.releaseExclusive(bottle.id) }
         let bottleID = bottle.id
         appInstallToken += 1
         let token = appInstallToken

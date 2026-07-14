@@ -17,9 +17,17 @@ public enum RuntimeStatus: Sendable {
 /// one runs at a time.
 public enum AppInstallError: LocalizedError {
     case anotherInstallInProgress
+    /// The bottle's exclusive lease is held by another op (delete/install/launch),
+    /// so a migration that must rewrite the prefix can't safely start.
+    case bottleBusy
 
     public var errorDescription: String? {
-        String(localized: "Another install is in progress. Wait for it to finish, then try again.")
+        switch self {
+        case .anotherInstallInProgress:
+            String(localized: "Another install is in progress. Wait for it to finish, then try again.")
+        case .bottleBusy:
+            String(localized: "This bottle is busy with another operation. Wait for it to finish, then try again.")
+        }
     }
 }
 
