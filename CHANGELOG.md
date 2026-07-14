@@ -4,16 +4,30 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.15] — 2026-07-14
+
+Further hardening from a code-review pass over 0.3.14.
+
+### Fixed
+- **Updating the graphics runtime and running a game can no longer overlap.**
+  The update now takes an exclusive lock that every way of starting a Windows
+  process shares, so it can't begin while any Wine command is in flight —
+  closing a narrow timing window where changing a bottle's settings could still
+  touch the runtime mid-update.
+- **Graphics-acceleration setup writes its per-bottle files atomically too.**
+  Two programs launching in one bottle at once can no longer leave a support
+  library momentarily missing or fail each other; each file is placed in a
+  single atomic step.
+
 ## [0.3.14] — 2026-07-14
 
 Follow-up hardening from a code-review pass over 0.3.13.
 
 ### Fixed
-- **Updating the graphics runtime now stands down every path at once.** A GPTK
-  import raises one maintenance flag that a single checkpoint reads, so *every*
-  way of starting a Windows process — launching, running, stopping, deleting a
-  bottle, changing its settings, or dropping in an installer — waits for the
-  update to finish, with no way for a new path to slip through.
+- **Updating the graphics runtime stands down the main entry points.** A GPTK
+  import raises a maintenance flag that a single checkpoint reads, so launching,
+  running, stopping, deleting a bottle, changing its settings, or dropping in an
+  installer are refused while the update is underway.
 - **Enabling MetalFX writes its files atomically.** Two bottles preparing
   MetalFX on the shared runtime at the same time can no longer expose a
   half-written file or fail each other; each shim is placed in one atomic step.
