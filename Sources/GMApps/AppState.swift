@@ -482,10 +482,15 @@ public final class AppState {
         }
         let prefix = await bottleStore.prefixDirectory(of: bottle)
         let exe = WindowsPath.toUnix(program.windowsPath, prefix: prefix)
-        return ProgramIconStore.extractAndStore(
-            exe: exe,
-            programID: program.id,
-            bottleDirectory: bottleDirectory
-        )
+        // Extracting an icon memory-maps and parses the .exe (up to hundreds of
+        // MB) — do it off the main actor so a program card can't stutter the UI.
+        let programID = program.id
+        return await Task.detached(priority: .utility) {
+            ProgramIconStore.extractAndStore(
+                exe: exe,
+                programID: programID,
+                bottleDirectory: bottleDirectory
+            )
+        }.value
     }
 }

@@ -1,4 +1,5 @@
 import GMApps
+import GMLaunch
 import GMModel
 import SwiftUI
 
@@ -54,7 +55,11 @@ struct LogViewerView: View {
         }
         .task(id: selected) {
             if let selected {
-                content = (try? String(contentsOf: selected, encoding: .utf8)) ?? ""
+                // Read the (possibly large) log off the main thread and only the
+                // tail, so opening a log never stalls the UI or spikes memory.
+                content = await Task.detached(priority: .utility) {
+                    LogReader.tail(of: selected)
+                }.value
             }
         }
         .task {

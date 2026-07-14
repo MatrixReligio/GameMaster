@@ -57,6 +57,27 @@ private func writeRuntimeWinemetal(env: Env, contents: String) throws -> URL {
     return dll
 }
 
+@Suite("LogReader")
+struct LogReaderTests {
+    @Test func returnsAShortFileWhole() throws {
+        let url = try tempDir().appendingPathComponent("log.txt")
+        try Data("hello\nworld\n".utf8).write(to: url)
+        #expect(LogReader.tail(of: url) == "hello\nworld\n")
+    }
+
+    @Test func capsToTheLastBytesOfALongFile() throws {
+        let url = try tempDir().appendingPathComponent("big.txt")
+        try Data("0123456789ABCDE".utf8).write(to: url) // 15 bytes
+        #expect(LogReader.tail(of: url, maxBytes: 5) == "ABCDE")
+    }
+
+    @Test func returnsEmptyForAMissingFile() {
+        let missing = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gm-nope-\(UUID().uuidString).log")
+        #expect(LogReader.tail(of: missing).isEmpty)
+    }
+}
+
 @Suite("WindowsPath")
 struct WindowsPathTests {
     private let prefix = URL(fileURLWithPath: "/tmp/b/prefix")
