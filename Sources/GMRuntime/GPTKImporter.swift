@@ -97,7 +97,7 @@ public struct GPTKImporter: Sendable {
         // One verified anchor is not enough: ditto copies the WHOLE
         // directory, so everything else that could reach dyld must pass too.
         try await preflightVerify(redistLib: redistLib)
-        guard var descriptor = try await store.descriptor(id: runtimeID) else {
+        guard let descriptor = try await store.descriptor(id: runtimeID) else {
             throw RuntimeError.runtimeNotInstalled(id: runtimeID)
         }
 
@@ -130,16 +130,39 @@ public struct GPTKImporter: Sendable {
                 throw RuntimeError.dmgLayoutUnrecognized
             }
         }
-        // Transactional swap. The metadata save is the commit point. Write the
-        // marker (recording the target version) BEFORE moving anything, so a
-        // failed marker write leaves the original lib intact, and any later
-        // crash is recoverable. A synchronous failure rolls the old lib back
-        // here; a crash is rolled back (or, if it already committed, cleaned up)
-        // by recoverInterruptedGPTKImports at the next startup.
-        let backup = wineRoot.appendingPathComponent(".lib.old-\(UUID().uuidString)", isDirectory: true)
+        let targetVersion = Self.versionString(from: volume.lastPathComponent)
+        return try await commitLibSwap(
+            libDir: libDir,
+            staging: staging,
+            runtimeID: runtimeID,
+            targetVersion: targetVersion,
+            descriptor: descriptor
+        )
+    }
+
+    /// Transactionally swaps the freshly-built `staging` lib into `libDir`. The
+    /// metadata save is the commit point; the marker (recording the target
+    /// version) is written BEFORE any move, so a failed marker write leaves the
+    /// original lib intact and any later crash is recoverable. A synchronous
+    /// failure rolls the old lib back here — clearing the marker only once the
+    /// rollback actually succeeds, otherwise leaving the marker + backup so
+    /// recoverInterruptedGPTKImports finishes the job at the next startup rather
+    /// than deleting the only evidence and stranding the runtime with no lib.
+    private func commitLibSwap(
+        libDir: URL,
+        staging: URL,
+        runtimeID: String,
+        targetVersion: String,
+        descriptor: RuntimeDescriptor
+    ) async throws -> RuntimeDescriptor {
+        let fm = FileManager.default
+        var descriptor = descriptor
+        // libDir is `<wineRoot>/lib`, so its parent is the wine root — keep the
+        // backup beside lib so the swap stays a same-volume rename.
+        let backup = libDir.deletingLastPathComponent()
+            .appendingPathComponent(".lib.old-\(UUID().uuidString)", isDirectory: true)
         let marker = await store.runtimeDirectory(id: runtimeID)
             .appendingPathComponent(RuntimeInstaller.gptkImportMarkerName)
-        let targetVersion = Self.versionString(from: volume.lastPathComponent)
         try JSONEncoder().encode(RuntimeInstaller.GPTKImportTransaction(
             libPath: libDir.path, backupPath: backup.path, targetVersion: targetVersion
         )).write(to: marker)
@@ -149,11 +172,6 @@ public struct GPTKImporter: Sendable {
             descriptor.gptk = .installed(version: targetVersion)
             try await store.save(descriptor) // commit point
         } catch {
-            // Roll back to the old lib if we got as far as moving it aside. Only
-            // clear the marker once the rollback actually succeeds — otherwise
-            // leave the marker + backup so startup recovery finishes the job
-            // rather than deleting the only evidence and stranding the runtime
-            // with no lib.
             var recovered = true
             if fm.fileExists(atPath: backup.path) {
                 try? fm.removeItem(at: libDir)
