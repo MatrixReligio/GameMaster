@@ -4,6 +4,34 @@ All notable changes to GameMaster are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.13] — 2026-07-14
+
+Hardening and reliability from a code-review pass over 0.3.12, plus a build-
+pipeline security fix.
+
+### Fixed
+- **Updating the graphics runtime is now fully exclusive.** Importing Apple's
+  D3DMetal is held under a maintenance lease for its whole duration: it won't
+  start while a game is launching, a bottle is being created, or an install is
+  running, and none of those can start while it's underway — so the shared
+  runtime can never be swapped out from under a live process.
+- **MetalFX checks both halves of its shim.** A runtime missing either the unix
+  or the Windows MetalFX library now reports a clear error instead of enabling
+  MetalFX half-prepared.
+- **A failed bottle setup detects leftovers more reliably.** Cleanup now checks
+  the bottle's folder on disk directly, so it can't miss a partially-removed
+  bottle.
+
+### Performance
+- **Very large, still-growing logs open with a strict size cap** — the viewer
+  reads a bounded, up-to-date tail rather than potentially more than intended.
+
+### Security
+- **The signing/notarization step no longer runs alongside freshly-installed
+  build tools.** The release pipeline was split so linters installed from
+  Homebrew run only in a separate, credential-free verification stage, isolated
+  from the job that holds the Developer ID certificate and signing keys.
+
 ## [0.3.12] — 2026-07-14
 
 More fixes from a code-review pass over 0.3.11 — one is a regression 0.3.11
