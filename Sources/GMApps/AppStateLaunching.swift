@@ -262,4 +262,17 @@ public extension AppState {
     func report(_ error: any Error) {
         lastErrorMessage = error.localizedDescription
     }
+
+    /// Probes live whether any bottle currently has a running wineserver — used
+    /// to refuse shared-runtime maintenance while a program is running, without
+    /// relying on the possibly-stale `activeBottleIDs` snapshot.
+    func anyBottleActive() async -> Bool {
+        for bottle in bottles {
+            let prefix = await bottleStore.prefixDirectory(of: bottle)
+            if activityProbe.isActive(prefix: prefix) {
+                return true
+            }
+        }
+        return false
+    }
 }

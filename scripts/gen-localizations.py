@@ -46,6 +46,14 @@ T = {
          "別のインストールが進行中です。完了してからもう一度お試しください。", "다른 설치가 진행 중입니다. 완료된 후 다시 시도하세요."),
     "Another install is in progress…":
         ("另一个安装正在进行中…", "另一個安裝正在進行中…", "別のインストールが進行中です…", "다른 설치가 진행 중입니다…"),
+    "A program is running. Stop it before updating the graphics runtime.":
+        ("有程序正在运行。请先停止它，再更新图形运行时。", "有程式正在執行。請先停止它，再更新圖形執行環境。",
+         "プログラムが実行中です。グラフィックスランタイムを更新する前に停止してください。",
+         "프로그램이 실행 중입니다. 그래픽 런타임을 업데이트하기 전에 중지하세요."),
+    "An install is in progress. Wait for it to finish before updating the graphics runtime.":
+        ("有安装正在进行。请等它完成后，再更新图形运行时。", "有安裝正在進行。請等它完成後，再更新圖形執行環境。",
+         "インストールが進行中です。グラフィックスランタイムを更新する前に完了までお待ちください。",
+         "설치가 진행 중입니다. 그래픽 런타임을 업데이트하기 전에 완료될 때까지 기다리세요."),
     "D3DMetal %@ ready": ("D3DMetal %@ 已就绪", "D3DMetal %@ 已就緒", "D3DMetal %@ 準備完了", "D3DMetal %@ 준비됨"),
     "Runtime ready": ("运行时已就绪", "執行環境已就緒", "ランタイム準備完了", "런타임 준비됨"),
     "Run Windows Program…": ("运行 Windows 程序…", "執行 Windows 程式…", "Windows プログラムを実行…", "Windows 프로그램 실행…"),

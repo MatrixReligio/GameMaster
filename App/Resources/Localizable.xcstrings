@@ -57,6 +57,34 @@
         }
       }
     },
+    "A program is running. Stop it before updating the graphics runtime.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プログラムが実行中です。グラフィックスランタイムを更新する前に停止してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "프로그램이 실행 중입니다. 그래픽 런타임을 업데이트하기 전에 중지하세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有程序正在运行。请先停止它，再更新图形运行时。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有程式正在執行。請先停止它，再更新圖形執行環境。"
+          }
+        }
+      }
+    },
     "Add to Library and Run": {
       "localizations": {
         "ja": {
@@ -165,6 +193,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "向遊戲聲明 CPU 支援 AVX/AVX2，使其啟用最佳化程式碼路徑（macOS 15+ 的 Rosetta 可轉譯 AVX）。若遊戲偵測 AVX-512 導致啟動當機，請關閉。"
+          }
+        }
+      }
+    },
+    "An install is in progress. Wait for it to finish before updating the graphics runtime.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インストールが進行中です。グラフィックスランタイムを更新する前に完了までお待ちください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설치가 진행 중입니다. 그래픽 런타임을 업데이트하기 전에 완료될 때까지 기다리세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有安装正在进行。请等它完成后，再更新图形运行时。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有安裝正在進行。請等它完成後，再更新圖形執行環境。"
           }
         }
       }

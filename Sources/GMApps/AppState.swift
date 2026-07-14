@@ -266,6 +266,27 @@ public final class AppState {
     }
 
     private func importGPTK(_ operation: () async throws -> RuntimeDescriptor) async {
+        // Importing replaces the shared runtime's libraries, so it needs a quiet
+        // maintenance window: refuse while an install/runtime download is writing
+        // or a program is running in any bottle, where a live (or later-spawned)
+        // process could otherwise load a mix of old and new components.
+        let runtimeInstalling = if case .installing = runtimeStatus {
+            true
+        } else {
+            false
+        }
+        if isInstalling || runtimeInstalling {
+            lastErrorMessage = String(
+                localized: "An install is in progress. Wait for it to finish before updating the graphics runtime."
+            )
+            return
+        }
+        if await anyBottleActive() {
+            lastErrorMessage = String(
+                localized: "A program is running. Stop it before updating the graphics runtime."
+            )
+            return
+        }
         do {
             let descriptor = try await operation()
             runtimeStatus = .ready(gptk: descriptor.gptk)

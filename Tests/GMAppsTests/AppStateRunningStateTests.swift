@@ -282,6 +282,37 @@ struct AppStateRunningStateTests {
         runner.release()
         await launchTask.value
     }
+
+    /// Importing GPTK replaces the shared runtime's libraries, so it must be
+    /// refused while a program is running in any bottle — otherwise a live (or
+    /// later-spawned) process could load a mix of old and new components. The
+    /// import must not even start (no DMG mounted).
+    @Test func refusesGPTKImportWhileAProgramIsRunning() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let (fixture, entry) = try await makeRuntimeFixtureEntry(in: dir)
+        let probe = FakeProbe()
+        let mounter = FakeMounter(mountPoint: dir)
+        let state = AppState(
+            root: dir.appendingPathComponent("approot"),
+            runner: FakeRunner(),
+            downloader: FakeDownloader(fixture: fixture),
+            mounter: mounter,
+            manifest: RuntimeManifest(defaultRuntimeID: entry.id, entries: [entry]),
+            systemToolRunner: SubprocessRunner(),
+            activityProbe: probe
+        )
+        await state.installDefaultRuntime()
+        await state.createBottle(name: "B")
+        let bottle = try #require(state.bottles.first)
+        let prefix = dir.appendingPathComponent("approot/bottles/\(bottle.id.uuidString)/prefix")
+        probe.setActive(prefix, true) // a program is running
+
+        state.lastErrorMessage = nil
+        await state.importGPTK(dmg: dir.appendingPathComponent("eval.dmg"))
+        #expect(state.lastErrorMessage != nil) // refused with a message
+        #expect(mounter.mounted.isEmpty) // the import never started
+    }
 }
 
 /// Runner that blocks the program launch (`start /wait`) until released, so a
