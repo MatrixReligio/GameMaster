@@ -196,7 +196,7 @@ public final class AppState {
             if !didRecoverRuntimeBackups {
                 do {
                     let runtimesDir = await runtimeStore.runtimesDirectory
-                    try await RuntimeInstaller.recoverOrphanedBackups(in: runtimesDir)
+                    try RuntimeInstaller.recoverOrphanedBackups(in: runtimesDir)
                     try RuntimeInstaller.recoverInterruptedGPTKImports(in: runtimesDir)
                     didRecoverRuntimeBackups = true
                 } catch {
